@@ -1,0 +1,89 @@
+import 'dotenv/config';
+import express from 'express';
+import cors from 'cors';
+import bcrypt from 'bcryptjs';
+import { db, Organizacion, Usuario } from './src/models/index.js';
+import authRoutes from './src/routes/auth.js';
+import usuariosRoutes from './src/routes/usuarios.js';
+import knowledgeRoutes from './src/routes/knowledge.js';
+import checkinRoutes from './src/routes/checkin.js';
+import chatRoutes from './src/routes/chat.js';
+
+const app = express();
+const PORT = process.env.PORT || 3001;
+
+const allowedOrigins = [
+  process.env.FRONTEND_URL || 'http://localhost:5173',
+  'http://localhost:5173',
+  'http://localhost:4173'
+];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    callback(new Error('CORS no permitido'));
+  },
+  credentials: true
+}));
+app.use(express.json({ limit: '1mb' }));
+
+app.use('/api/auth', authRoutes);
+app.use('/api/usuarios', usuariosRoutes);
+app.use('/api/knowledge', knowledgeRoutes);
+app.use('/api/checkin', checkinRoutes);
+app.use('/api/chat', chatRoutes);
+
+app.get('/api/health', (_req, res) => res.json({ success: true, data: 'OK' }));
+
+// 404 handler
+app.use((_req, res) => res.status(404).json({ success: false, error: 'Ruta no encontrada' }));
+
+async function initOrganizacion() {
+  const FUNCIONES = ['Tesorería', 'Impuestos', 'Sueldos', 'Autorizaciones'];
+
+  let org = await Organizacion.findOne({ where: { slug: 'donemilio' } });
+  if (!org) {
+    org = await Organizacion.create({ nombre: 'Don Emilio', slug: 'donemilio' });
+    console.log('Organización Don Emilio creada');
+  }
+
+  const seedUsers = [
+    { email: 'danilomarchisone@gmail.com', nombre: 'Danilo', rol: 'superadmin' },
+    { email: 'arielzsilavecz@gmail.com', nombre: 'Ariel', rol: 'admin' },
+    { email: 'pablodo@gmail.com', nombre: 'Pablo', rol: 'admin' }
+  ];
+
+  const passwordHash = await bcrypt.hash('admin', 12);
+
+  for (const u of seedUsers) {
+    const exists = await Usuario.findOne({ where: { email: u.email } });
+    if (!exists) {
+      await Usuario.create({
+        ...u,
+        passwordHash,
+        funciones: FUNCIONES,
+        organizacionId: org.id
+      });
+      console.log(`Usuario ${u.nombre} creado`);
+    }
+  }
+}
+
+async function start() {
+  try {
+    await db.authenticate();
+    console.log('DB conectada');
+
+    await db.sync({ alter: process.env.NODE_ENV !== 'production' });
+    console.log('Modelos sincronizados');
+
+    await initOrganizacion();
+
+    app.listen(PORT, () => console.log(`Servidor en puerto ${PORT}`));
+  } catch (err) {
+    console.error('Error al iniciar:', err.message);
+    process.exit(1);
+  }
+}
+
+start();
