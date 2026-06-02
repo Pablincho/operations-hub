@@ -93,6 +93,59 @@ export const BASE_QUESTIONS = {
   ]
 };
 
+// 10 initial onboarding questions per function (fixed, asked once)
+export const INITIAL_QUESTIONS = {
+  Tesorería: [
+    '¿Cuántas cuentas bancarias manejás y en qué banco está cada una?',
+    '¿Cómo se llama el sistema contable que usás y cómo ingresás a él?',
+    '¿Con qué frecuencia realizás pagos a proveedores (diario, semanal)?',
+    '¿Quién autoriza los pagos antes de que vos los ejecutés?',
+    '¿Qué plataformas digitales usás para operar (homebanking, Interbanking, etc.)?',
+    '¿Retención de impuestos al pagar proveedores: ¿cuáles aplicás y en qué casos?',
+    '¿Manejás fondos en USD? ¿Cómo operás con ellos?',
+    '¿Con qué frecuencia conciliás las cuentas bancarias?',
+    '¿Cuál es el monto de caja chica y quién puede usarla?',
+    '¿Con quién coordinás más seguido en tu trabajo diario (contador, gerente, otros)?'
+  ],
+  Impuestos: [
+    '¿Cuáles son los impuestos que presentás mensualmente?',
+    '¿Cuáles son los sistemas que usás para presentar (AFIP, Rentas, otros)?',
+    '¿Cómo ingresás a AFIP: con clave fiscal o a través de un estudio?',
+    '¿Usás Albor para exportar datos impositivos? ¿Cómo?',
+    '¿Quién te revisa o aprueba las presentaciones antes de enviarlas?',
+    '¿Cuáles son los vencimientos que más te preocupan o son más críticos?',
+    '¿Presentás impuestos provinciales además de nacionales? ¿Cuáles?',
+    '¿Manejás declaraciones juradas anuales? ¿Cuáles son las más complejas?',
+    '¿Cómo pagás los impuestos: VEP, débito automático, Interbanking?',
+    '¿Con quién coordinás cuando tenés una duda técnica impositiva?'
+  ],
+  Sueldos: [
+    '¿Cuántos empleados liquidás y bajo qué convenio laboral?',
+    '¿Qué sistema usás para liquidar sueldos?',
+    '¿Cuándo es el cierre de novedades cada mes y quién te las informa?',
+    '¿Cómo pagás los sueldos: transferencia bancaria, efectivo u otro?',
+    '¿Presentás el F931 vos mismo o lo hace el contador?',
+    '¿Manejás ART, obra social y sindicato? ¿Cuáles son?',
+    '¿Cómo registrás los sueldos en Albor?',
+    '¿Qué pasa cuando hay una incorporación nueva? ¿Cuáles son los primeros pasos?',
+    '¿Cómo manejás las vacaciones y el aguinaldo en la liquidación?',
+    '¿Con quién coordinás más seguido para cerrar la liquidación mensual?'
+  ],
+  Autorizaciones: [
+    '¿Qué tipos de pagos requieren tu autorización y cuáles no?',
+    '¿Cuál es el monto límite para autorizar sin consultar a Danilo?',
+    '¿Cómo te llegan las solicitudes de autorización (mail, sistema, papel)?',
+    '¿Qué verificás antes de autorizar un pago?',
+    '¿Cómo confirmás que la factura fue recibida y aprobada por el área solicitante?',
+    '¿Dónde quedá registrada cada autorización que otorgás?',
+    '¿Cómo avisás al tesorero que un pago está autorizado?',
+    '¿Qué hacés si detectás una factura incorrecta o sospechosa?',
+    '¿Cómo manejás autorizaciones urgentes fuera del proceso normal?',
+    '¿Con quién coordinás más seguido en tu función de autorización?'
+  ]
+};
+
+// Generate 3 daily questions adapted from previous answers (AI)
 export async function generarPreguntas(funcion, prevAnswers = []) {
   const answeredQs = new Set(prevAnswers.map(p => p.pregunta));
   const base = BASE_QUESTIONS[funcion] || [];

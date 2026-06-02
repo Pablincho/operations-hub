@@ -1,6 +1,10 @@
 import OpenAI from 'openai';
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+let _openai = null;
+function getOpenAI() {
+  if (!_openai) _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  return _openai;
+}
 
 const FUNC_LABELS = {
   Tesorería: 'Tesorería (pagos, conciliación, caja chica, homebanking)',
@@ -41,7 +45,7 @@ REGLAS ESTRICTAS:
 
   historyMessages.push({ role: 'user', content: mensajeActual });
 
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model: 'gpt-4o',
     messages: [{ role: 'system', content: systemPrompt }, ...historyMessages],
     max_tokens: 1000,
@@ -68,7 +72,7 @@ Generá 3 preguntas concretas y operativas. Priorizá temas no cubiertos o profu
 Cubrí procedimientos paso a paso, datos de acceso (usuarios/contraseñas de sistemas), cuentas bancarias, vencimientos y decisiones del día a día.
 Devolvé SOLO un JSON: {"questions":["pregunta1","pregunta2","pregunta3"]}`;
 
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model: 'gpt-4o',
     messages: [{ role: 'user', content: prompt }],
     max_tokens: 500,

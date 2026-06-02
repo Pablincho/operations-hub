@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import './loadEnv.js';
 import express from 'express';
 import cors from 'cors';
 import bcrypt from 'bcryptjs';
@@ -15,15 +15,16 @@ const PORT = process.env.PORT || 3001;
 const allowedOrigins = new Set([
   process.env.FRONTEND_URL,
   process.env.FRONTEND_URL_ALT,
-  'http://localhost:5173',
-  'http://localhost:4173',
   'https://operations-hub-frontend-production.up.railway.app'
 ].filter(Boolean).map((origin) => origin.replace(/\/$/, '')));
 
 app.use(cors({
   origin: (origin, callback) => {
-    const normalizedOrigin = origin?.replace(/\/$/, '');
-    if (!origin || allowedOrigins.has(normalizedOrigin)) return callback(null, true);
+    if (!origin) return callback(null, true);
+    const normalizedOrigin = origin.replace(/\/$/, '');
+    // Allow any localhost port for local development
+    if (/^http:\/\/localhost(:\d+)?$/.test(normalizedOrigin)) return callback(null, true);
+    if (allowedOrigins.has(normalizedOrigin)) return callback(null, true);
     callback(new Error('CORS no permitido'));
   },
   credentials: true

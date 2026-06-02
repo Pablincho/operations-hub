@@ -5,9 +5,9 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { FUNCIONES, FUNC_ICONS, FUNC_COLORS } from '@/lib/utils'
-import { CheckCircle2, Circle, Loader2, RefreshCw } from 'lucide-react'
+import { CheckCircle2, Loader2, RefreshCw, BookOpen, CalendarCheck } from 'lucide-react'
 
-function CheckinFuncion({ funcion, todaySession, onComplete }) {
+function CheckinFuncion({ funcion, todaySession, onboardingDone, diasCompletos, onComplete }) {
   const [session, setSession] = useState(todaySession)
   const [answers, setAnswers] = useState([])
   const [loading, setLoading] = useState(false)
@@ -37,7 +37,11 @@ function CheckinFuncion({ funcion, todaySession, onComplete }) {
     setSaving(true)
     try {
       await api.post(`/checkin/${session.id}/responder`, { respuestas: answers })
-      const updated = { ...session, completado: true, preguntas: session.preguntas.map((p, i) => ({ ...p, respuesta: answers[i], respondida: true })) }
+      const updated = {
+        ...session,
+        completado: true,
+        preguntas: session.preguntas.map((p, i) => ({ ...p, respuesta: answers[i], respondida: true }))
+      }
       setSession(updated)
       onComplete?.()
     } catch (err) {
@@ -49,43 +53,68 @@ function CheckinFuncion({ funcion, todaySession, onComplete }) {
 
   const color = FUNC_COLORS[funcion]
   const icon = FUNC_ICONS[funcion]
+  const isOnboarding = session ? session.preguntas.length === 10 : !onboardingDone
+  const phase = isOnboarding ? 'inicial' : 'diario'
+  const phaseLabel = isOnboarding ? 'Preguntas iniciales' : `Día ${diasCompletos + 1} de 20`
+  const PhaseIcon = isOnboarding ? BookOpen : CalendarCheck
 
   return (
     <Card className="overflow-hidden">
       <CardHeader className="py-3 px-4" style={{ background: color }}>
         <CardTitle className="text-sm font-semibold text-white flex items-center gap-2">
           {icon} {funcion}
-          {session?.completado && <CheckCircle2 size={16} className="ml-auto text-green-300" />}
+          <span className="ml-auto flex items-center gap-1 text-xs font-normal opacity-80">
+            <PhaseIcon size={13} />
+            {phaseLabel}
+          </span>
+          {session?.completado && <CheckCircle2 size={16} className="text-green-300" />}
         </CardTitle>
       </CardHeader>
       <CardContent className="p-4">
+        {/* No session yet — show start button */}
         {!session && (
           <div className="text-center py-4">
-            <p className="text-sm text-muted-foreground mb-3">No iniciaste el check-in de hoy</p>
+            {!onboardingDone ? (
+              <>
+                <p className="text-sm font-medium mb-1" style={{ color }}>Onboarding pendiente</p>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Antes de empezar el check-in diario, respondé las 10 preguntas iniciales para documentar tu función.
+                </p>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground mb-3">No iniciaste el check-in de hoy</p>
+            )}
             <Button onClick={startCheckin} disabled={loading} className="gap-2" style={{ background: color, color: 'white' }}>
               {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-              Generar preguntas del día
+              {!onboardingDone ? 'Iniciar preguntas iniciales' : 'Generar preguntas del día'}
             </Button>
           </div>
         )}
 
-        {session && session.completado && (
+        {/* Session completed — show answers */}
+        {session?.completado && (
           <div className="flex flex-col gap-3">
             {session.preguntas.map((p, i) => (
               <div key={i} className="rounded-lg p-3" style={{ background: '#f9faf9' }}>
-                <p className="text-xs font-semibold mb-1" style={{ color }}>{p.pregunta}</p>
+                <p className="text-xs font-semibold mb-1" style={{ color }}>{i + 1}. {p.pregunta}</p>
                 <p className="text-sm">{p.respuesta || <span className="text-muted-foreground">Sin respuesta</span>}</p>
               </div>
             ))}
             <div className="flex items-center gap-2 text-sm text-green-600 mt-1">
               <CheckCircle2 size={16} />
-              Check-in completado hoy
+              {isOnboarding ? 'Onboarding completado ✓ Mañana empieza el check-in diario' : 'Check-in completado hoy'}
             </div>
           </div>
         )}
 
+        {/* Session in progress — show Q&A form */}
         {session && !session.completado && (
           <div className="flex flex-col gap-4">
+            {isOnboarding && (
+              <p className="text-xs text-muted-foreground bg-amber-50 border border-amber-200 rounded p-2">
+                📋 Estas son las preguntas iniciales de tu función. Solo las hacemos una vez para entender tu contexto.
+              </p>
+            )}
             {session.preguntas.map((p, i) => (
               <div key={i}>
                 <label className="text-xs font-semibold block mb-1" style={{ color }}>
@@ -98,7 +127,7 @@ function CheckinFuncion({ funcion, todaySession, onComplete }) {
                     copy[i] = e.target.value
                     setAnswers(copy)
                   }}
-                  rows={3}
+                  rows={isOnboarding ? 2 : 3}
                   placeholder="Tu respuesta..."
                 />
               </div>
@@ -121,6 +150,8 @@ function CheckinFuncion({ funcion, todaySession, onComplete }) {
 export default function Checkin() {
   const { user } = useAuth()
   const [todaySessions, setTodaySessions] = useState([])
+  const [onboardingStatus, setOnboardingStatus] = useState({})
+  const [dailyCounts, setDailyCounts] = useState({})
   const [loading, setLoading] = useState(true)
   const funciones = user?.funciones || []
 
@@ -131,6 +162,8 @@ export default function Checkin() {
     try {
       const res = await api.get('/checkin/hoy')
       setTodaySessions(res.data.data)
+      setOnboardingStatus(res.data.onboardingStatus || {})
+      setDailyCounts(res.data.dailyCounts || {})
     } catch {
       // ignore
     } finally {
@@ -142,16 +175,22 @@ export default function Checkin() {
     return todaySessions.find(s => s.funcion === fn) || null
   }
 
-  const completedCount = funciones.filter(fn => sessionForFuncion(fn)?.completado).length
+  const completedToday = funciones.filter(fn => sessionForFuncion(fn)?.completado).length
+  const pendingOnboarding = funciones.filter(fn => !onboardingStatus[fn]).length
 
   return (
     <div className="max-w-3xl mx-auto p-6">
       <div className="mb-6">
-        <h1 className="text-xl font-bold" style={{ color: '#1a3a1a' }}>Check-in Diario</h1>
+        <h1 className="text-xl font-bold" style={{ color: '#1a3a1a' }}>Check-in</h1>
         <p className="text-sm text-muted-foreground">
-          {completedCount}/{funciones.length} funciones completadas hoy ·{' '}
+          {completedToday}/{funciones.length} completadas hoy ·{' '}
           {new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}
         </p>
+        {pendingOnboarding > 0 && (
+          <p className="text-xs mt-1 text-amber-700">
+            {pendingOnboarding === 1 ? '1 función pendiente de onboarding' : `${pendingOnboarding} funciones pendientes de onboarding`}
+          </p>
+        )}
       </div>
 
       {loading ? (
@@ -169,6 +208,8 @@ export default function Checkin() {
               key={fn}
               funcion={fn}
               todaySession={sessionForFuncion(fn)}
+              onboardingDone={!!onboardingStatus[fn]}
+              diasCompletos={dailyCounts[fn] || 0}
               onComplete={load}
             />
           ))}

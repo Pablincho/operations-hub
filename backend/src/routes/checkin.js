@@ -1,25 +1,40 @@
 import { Router } from 'express';
 import { verifyJWT, requireAdmin } from '../auth.js';
 import { CheckinSession, KnowledgeEntry } from '../models/index.js';
-import { generarPreguntas } from '../services/checkinService.js';
+import { generarPreguntas, INITIAL_QUESTIONS } from '../services/checkinService.js';
 
 const router = Router();
 router.use(verifyJWT);
 
-// GET today's check-in sessions for the current user
+// GET today's check-in sessions + onboarding status per function
 router.get('/hoy', async (req, res) => {
   try {
     const today = new Date().toISOString().split('T')[0];
-    const sessions = await CheckinSession.findAll({
-      where: { usuarioId: req.user.id, fecha: today }
-    });
-    res.json({ success: true, data: sessions });
+    const [todaySessions, allCompleted] = await Promise.all([
+      CheckinSession.findAll({ where: { usuarioId: req.user.id, fecha: today } }),
+      CheckinSession.findAll({ where: { usuarioId: req.user.id, completado: true } })
+    ]);
+
+    // Build onboarding status: a function has onboarding complete if it has ≥1 completed session with 10 questions
+    const onboardingStatus = {};
+    const dailyCounts = {};
+    for (const s of allCompleted) {
+      if (s.preguntas.length === 10) {
+        onboardingStatus[s.funcion] = true;
+      } else if (s.preguntas.length === 3) {
+        dailyCounts[s.funcion] = (dailyCounts[s.funcion] || 0) + 1;
+      }
+    }
+
+    res.json({ success: true, data: todaySessions, onboardingStatus, dailyCounts });
   } catch {
     res.status(500).json({ success: false, error: 'Error interno' });
   }
 });
 
-// POST start a check-in for a specific function (generates questions via GPT)
+// POST start a check-in for a specific function
+// Phase 1 (onboarding): 10 fixed initial questions — asked once per function
+// Phase 2 (daily): 3 AI-adapted questions per day, up to 20 days
 router.post('/iniciar', async (req, res) => {
   try {
     const { funcion } = req.body;
@@ -38,16 +53,25 @@ router.post('/iniciar', async (req, res) => {
     });
     if (existing) return res.json({ success: true, data: existing });
 
-    // Gather previous Q&A to avoid repetition
+    // Find all completed sessions for this function
     const prevSessions = await CheckinSession.findAll({
       where: { usuarioId: req.user.id, funcion, completado: true }
     });
-    const prevAnswers = prevSessions.flatMap(s =>
-      s.preguntas.filter(p => p.respondida)
-    );
 
-    const questionTexts = await generarPreguntas(funcion, prevAnswers);
-    const preguntas = questionTexts.map(q => ({ pregunta: q, respuesta: '', respondida: false }));
+    // Check if onboarding (10 questions) was already completed
+    const onboardingDone = prevSessions.some(s => s.preguntas.length === 10);
+
+    let preguntas;
+    if (!onboardingDone) {
+      // Phase 1: return 10 fixed initial questions (no AI call)
+      const initialQs = INITIAL_QUESTIONS[funcion] || [];
+      preguntas = initialQs.map(q => ({ pregunta: q, respuesta: '', respondida: false }));
+    } else {
+      // Phase 2: generate 3 AI-adapted questions from all previous answers
+      const prevAnswers = prevSessions.flatMap(s => s.preguntas.filter(p => p.respondida));
+      const questionTexts = await generarPreguntas(funcion, prevAnswers);
+      preguntas = questionTexts.map(q => ({ pregunta: q, respuesta: '', respondida: false }));
+    }
 
     const session = await CheckinSession.create({
       usuarioId: req.user.id,
