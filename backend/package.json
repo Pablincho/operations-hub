@@ -19,6 +19,7 @@
     "openai": "^4.52.0",
     "pg": "^8.12.0",
     "pg-hstore": "^2.3.4",
+    "resend": "^6.12.4",
     "sequelize": "^6.37.3"
   },
   "devDependencies": {

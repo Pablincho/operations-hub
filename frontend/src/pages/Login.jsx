@@ -4,7 +4,32 @@ import { useAuth } from '@/contexts/AuthContext'
 import api from '@/services/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Check } from 'lucide-react'
+import { Check, X, Eye, EyeOff } from 'lucide-react'
+
+function PasswordInput({ value, onChange, placeholder, autoComplete, required }) {
+  const [show, setShow] = useState(false)
+  return (
+    <div className="relative">
+      <Input
+        type={show ? 'text' : 'password'}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        autoComplete={autoComplete}
+        required={required}
+        className="pr-10"
+      />
+      <button
+        type="button"
+        tabIndex={-1}
+        onClick={() => setShow(s => !s)}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+      >
+        {show ? <EyeOff size={16} /> : <Eye size={16} />}
+      </button>
+    </div>
+  )
+}
 
 function PasswordRequirements({ password }) {
   const checks = [
@@ -27,6 +52,21 @@ function PasswordRequirements({ password }) {
         </li>
       ))}
     </ul>
+  )
+}
+
+function PasswordMatch({ password, confirm }) {
+  if (!confirm) return null
+  const matches = confirm.length > 0 && password === confirm
+  return (
+    <p className={`flex items-center gap-1.5 text-xs px-1 transition-colors ${matches ? 'text-green-600' : 'text-destructive'}`}>
+      <span className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 transition-colors ${matches ? 'bg-green-500' : 'bg-red-400'}`}>
+        {matches
+          ? <Check size={10} strokeWidth={3} className="text-white" />
+          : <X size={10} strokeWidth={3} className="text-white" />}
+      </span>
+      {matches ? 'Las contraseñas coinciden' : 'Las contraseñas no coinciden'}
+    </p>
   )
 }
 
@@ -135,10 +175,7 @@ export default function Login() {
       const res = await api.post('/auth/recover/request', { email: normalizedEmail })
       setMode('recoverReset')
       setEmail(normalizedEmail)
-      const code = res.data?.data?.recoveryCode
-      setInfo(code
-        ? `Código generado (modo desarrollo): ${code}`
-        : 'Si el email existe, se generó un código de recuperación.')
+      setInfo(res.data?.data?.message || 'Se envió el código a tu email.')
     } catch (err) {
       setError(err.response?.data?.error || 'No se pudo iniciar la recuperación')
     } finally {
@@ -220,11 +257,10 @@ export default function Login() {
               autoComplete="email"
               required
             />
-            <Input
-              type="password"
-              placeholder="Contraseña"
+            <PasswordInput
               value={password}
               onChange={e => { setPassword(e.target.value); setError(''); setInfo('') }}
+              placeholder="Contraseña"
               autoComplete="current-password"
               required
             />
@@ -253,23 +289,22 @@ export default function Login() {
             <p className="text-xs text-muted-foreground">
               Definí una contraseña definitiva para tu cuenta.
             </p>
-            <Input
-              type="password"
-              placeholder="Nueva contraseña"
+            <PasswordInput
               value={newPassword}
               onChange={e => { setNewPassword(e.target.value); setError(''); setInfo('') }}
+              placeholder="Nueva contraseña"
               autoComplete="new-password"
               required
             />
             <PasswordRequirements password={newPassword} />
-            <Input
-              type="password"
-              placeholder="Confirmar contraseña"
+            <PasswordInput
               value={confirmPassword}
               onChange={e => { setConfirmPassword(e.target.value); setError(''); setInfo('') }}
+              placeholder="Confirmar contraseña"
               autoComplete="new-password"
               required
             />
+            <PasswordMatch password={newPassword} confirm={confirmPassword} />
             {error && <p className="text-destructive text-sm text-center">{error}</p>}
             {info && <p className="text-green-700 text-sm text-center">{info}</p>}
             <Button
@@ -315,28 +350,29 @@ export default function Login() {
             <Input type="email" value={email} disabled />
             <Input
               type="text"
-              placeholder="Código de recuperación"
+              inputMode="numeric"
+              placeholder="Código de recuperación (6 dígitos)"
               value={recoveryCode}
-              onChange={e => { setRecoveryCode(e.target.value); setError(''); setInfo('') }}
+              onChange={e => { setRecoveryCode(e.target.value.replace(/\D/g, '').slice(0, 6)); setError(''); setInfo('') }}
+              maxLength={6}
               required
             />
-            <Input
-              type="password"
-              placeholder="Nueva contraseña"
+            <PasswordInput
               value={newPassword}
               onChange={e => { setNewPassword(e.target.value); setError(''); setInfo('') }}
+              placeholder="Nueva contraseña"
               autoComplete="new-password"
               required
             />
             <PasswordRequirements password={newPassword} />
-            <Input
-              type="password"
-              placeholder="Confirmar contraseña"
+            <PasswordInput
               value={confirmPassword}
               onChange={e => { setConfirmPassword(e.target.value); setError(''); setInfo('') }}
+              placeholder="Confirmar contraseña"
               autoComplete="new-password"
               required
             />
+            <PasswordMatch password={newPassword} confirm={confirmPassword} />
             {error && <p className="text-destructive text-sm text-center">{error}</p>}
             {info && <p className="text-green-700 text-sm text-center">{info}</p>}
             <Button

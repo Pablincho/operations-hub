@@ -20,5 +20,7 @@ export function OrganizacionModel(sequelize) {
       type: DataTypes.JSONB,
       defaultValue: {}
     }
+  }, {
+    tableName: 'Organizaciones'
   });
 }

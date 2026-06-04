@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { randomInt } from 'crypto';
 import { Usuario } from '../models/index.js';
 import { verifyJWT } from '../auth.js';
+import { sendRecoveryEmail } from '../services/emailService.js';
 
 const router = Router();
 
@@ -136,21 +137,22 @@ router.post('/recover/request', async (req, res) => {
 
     const usuario = await Usuario.findOne({ where: { email, activo: true } });
 
-    let recoveryCode;
-    if (usuario) {
-      recoveryCode = String(randomInt(100000, 999999));
-      const resetTokenHash = await bcrypt.hash(recoveryCode, 10);
-      const resetTokenExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
-      await usuario.update({ resetTokenHash, resetTokenExpiresAt });
+    if (!usuario) {
+      return res.status(404).json({ success: false, error: 'No existe una cuenta asociada a ese email' });
+    }
+
+    const recoveryCode = String(randomInt(100000, 999999));
+    const resetTokenHash = await bcrypt.hash(recoveryCode, 10);
+    const resetTokenExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
+    await usuario.update({ resetTokenHash, resetTokenExpiresAt });
+    if (process.env.NODE_ENV !== 'production') {
       console.log(`[RECOVERY] Codigo para ${email}: ${recoveryCode}`);
     }
+    await sendRecoveryEmail(email, recoveryCode);
 
     res.json({
       success: true,
-      data: {
-        message: 'Si el email existe, se generó un código de recuperación válido por 15 minutos.',
-        recoveryCode: process.env.NODE_ENV !== 'production' ? recoveryCode : undefined
-      }
+      data: { message: 'Se envió un código de recuperación a tu email. Válido por 15 minutos.' }
     });
   } catch {
     res.status(500).json({ success: false, error: 'Error interno' });

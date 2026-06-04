@@ -71,6 +71,9 @@ async function initOrganizacion() {
         organizacionId: org.id
       });
       console.log(`Usuario ${u.nombre} creado`);
+    } else if (!exists.mustChangePassword) {
+      await exists.update({ mustChangePassword: true });
+      console.log(`Usuario ${exists.nombre}: mustChangePassword activado`);
     }
   }
 }
