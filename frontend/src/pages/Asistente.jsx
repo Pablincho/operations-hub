@@ -87,7 +87,7 @@ export default function Asistente() {
   }
 
   return (
-    <div className="flex flex-col h-full max-w-3xl mx-auto">
+    <div className="flex flex-col h-full w-full">
       {/* Topbar */}
       <div className="flex items-center justify-between px-5 py-3 border-b bg-white">
         <div className="flex items-center gap-2">

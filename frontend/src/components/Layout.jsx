@@ -13,6 +13,7 @@ const navItems = [
 export default function Layout({ children }) {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const headerLogoUrl = 'https://res.cloudinary.com/dmigevwah/image/upload/v1777497691/don_emilio/don_emilio_logo_header.svg'
 
   function handleLogout() {
     logout()
@@ -25,15 +26,14 @@ export default function Layout({ children }) {
     <div className="flex flex-col h-screen">
       {/* Header */}
       <header style={{ background: '#1a3a1a' }} className="flex items-center gap-3 px-5 py-3 shrink-0">
-        <div
-          className="w-9 h-9 rounded-full flex items-center justify-center text-xl shrink-0"
-          style={{ background: '#e8d5a3' }}
-        >
-          🌾
-        </div>
+        <img
+          src={headerLogoUrl}
+          alt="Don Emilio"
+          className="h-9 w-auto shrink-0 object-contain"
+        />
         <div className="flex-1 min-w-0">
           <p className="font-bold text-sm leading-tight" style={{ color: '#e8d5a3' }}>
-            Don Emilio – Admin Operativa
+            Don Emilio – Administración
           </p>
           <p className="text-xs opacity-60" style={{ color: '#e8d5a3' }}>
             {user?.nombre} · {user?.rol}

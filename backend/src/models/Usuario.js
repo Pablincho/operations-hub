@@ -17,6 +17,19 @@ export function UsuarioModel(sequelize) {
       type: DataTypes.STRING,
       allowNull: false
     },
+    mustChangePassword: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false
+    },
+    resetTokenHash: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
+    resetTokenExpiresAt: {
+      type: DataTypes.DATE,
+      allowNull: true
+    },
     nombre: {
       type: DataTypes.STRING,
       allowNull: false

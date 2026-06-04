@@ -44,6 +44,7 @@ app.use((_req, res) => res.status(404).json({ success: false, error: 'Ruta no en
 
 async function initOrganizacion() {
   const FUNCIONES = ['Tesorería', 'Impuestos', 'Sueldos', 'Autorizaciones'];
+  const defaultSeedPassword = process.env.DEFAULT_USER_PASSWORD || 'Bienvenido123';
 
   let org = await Organizacion.findOne({ where: { slug: 'donemilio' } });
   if (!org) {
@@ -57,7 +58,7 @@ async function initOrganizacion() {
     { email: 'pablodo@gmail.com', nombre: 'Pablo', rol: 'admin' }
   ];
 
-  const passwordHash = await bcrypt.hash('admin', 12);
+  const passwordHash = await bcrypt.hash(defaultSeedPassword, 12);
 
   for (const u of seedUsers) {
     const exists = await Usuario.findOne({ where: { email: u.email } });
@@ -65,6 +66,7 @@ async function initOrganizacion() {
       await Usuario.create({
         ...u,
         passwordHash,
+        mustChangePassword: true,
         funciones: FUNCIONES,
         organizacionId: org.id
       });

@@ -1,20 +1,78 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
-import { verifyJWT, requireAdmin, requireSuperAdmin } from '../auth.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { verifyJWT, requireAdmin } from '../auth.js';
 import { Usuario } from '../models/index.js';
 
 const router = Router();
 router.use(verifyJWT);
+
+function isValidEmail(email = '') {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function validatePassword(password = '') {
+  if (typeof password !== 'string') return 'Contraseña inválida';
+  if (password.length < 8) return 'La contraseña debe tener al menos 8 caracteres';
+  if (!/[A-Z]/.test(password)) return 'La contraseña debe incluir al menos 1 mayúscula';
+  if (!/[a-z]/.test(password)) return 'La contraseña debe incluir al menos 1 minúscula';
+  if (!/[0-9]/.test(password)) return 'La contraseña debe incluir al menos 1 número';
+  return null;
+}
+
+function getDefaultUserPassword() {
+  const fromEnv = (process.env.DEFAULT_USER_PASSWORD || '').trim();
+  if (fromEnv) return fromEnv;
+
+  try {
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    const envPath = path.resolve(__dirname, '../../../.env');
+    const envText = fs.readFileSync(envPath, 'utf8');
+
+    const lines = envText.split(/\r?\n/);
+    for (const rawLine of lines) {
+      const line = (rawLine || '').trim();
+      if (!line || line.startsWith('#') || !line.includes('=')) continue;
+
+      const eqIndex = line.indexOf('=');
+      const rawKey = line.slice(0, eqIndex);
+      const key = rawKey.replace(/[^A-Za-z0-9_]/g, '');
+      if (key !== 'DEFAULT_USER_PASSWORD') continue;
+
+      const value = line.slice(eqIndex + 1).trim();
+      if (value) return value;
+    }
+  } catch {
+    // ignore and return fallback
+  }
+
+  return 'Bienvenido123';
+}
 
 // GET all users of the org
 router.get('/', requireAdmin, async (req, res) => {
   try {
     const usuarios = await Usuario.findAll({
       where: { organizacionId: req.user.organizacionId },
-      attributes: { exclude: ['passwordHash'] },
+      attributes: { exclude: ['passwordHash', 'resetTokenHash', 'resetTokenExpiresAt'] },
       order: [['createdAt', 'ASC']]
     });
     res.json({ success: true, data: usuarios });
+  } catch {
+    res.status(500).json({ success: false, error: 'Error interno' });
+  }
+});
+
+// GET default temporary password configured in backend env
+router.get('/default-password', requireAdmin, async (_req, res) => {
+  try {
+    res.json({
+      success: true,
+      data: { defaultPassword: getDefaultUserPassword() }
+    });
   } catch {
     res.status(500).json({ success: false, error: 'Error interno' });
   }
@@ -24,12 +82,19 @@ router.get('/', requireAdmin, async (req, res) => {
 router.post('/', requireAdmin, async (req, res) => {
   try {
     const { email, password, nombre, rol, funciones } = req.body;
+    const normalizedEmail = (email || '').toLowerCase().trim();
+    const defaultPassword = getDefaultUserPassword();
+    const tempPassword = (password && password.trim()) ? password.trim() : defaultPassword;
 
-    if (!email || !password || !nombre) {
-      return res.status(400).json({ success: false, error: 'Campos requeridos: email, password, nombre' });
+    if (!normalizedEmail || !nombre) {
+      return res.status(400).json({ success: false, error: 'Campos requeridos: email, nombre' });
     }
-    if (password.length < 6) {
-      return res.status(400).json({ success: false, error: 'La contraseña debe tener al menos 6 caracteres' });
+    if (!isValidEmail(normalizedEmail)) {
+      return res.status(400).json({ success: false, error: 'Email inválido' });
+    }
+    const pwError = validatePassword(tempPassword);
+    if (pwError) {
+      return res.status(400).json({ success: false, error: pwError });
     }
 
     const targetRol = rol || 'operativo';
@@ -37,15 +102,16 @@ router.post('/', requireAdmin, async (req, res) => {
       return res.status(403).json({ success: false, error: 'Solo el superadmin puede crear roles elevados' });
     }
 
-    const existing = await Usuario.findOne({ where: { email: email.toLowerCase().trim() } });
+    const existing = await Usuario.findOne({ where: { email: normalizedEmail } });
     if (existing) {
       return res.status(400).json({ success: false, error: 'Ya existe un usuario con ese email' });
     }
 
-    const passwordHash = await bcrypt.hash(password, 12);
+    const passwordHash = await bcrypt.hash(tempPassword, 12);
     const usuario = await Usuario.create({
-      email: email.toLowerCase().trim(),
+      email: normalizedEmail,
       passwordHash,
+      mustChangePassword: true,
       nombre,
       rol: targetRol,
       funciones: funciones || [],
@@ -53,7 +119,14 @@ router.post('/', requireAdmin, async (req, res) => {
     });
 
     const { passwordHash: _, ...data } = usuario.toJSON();
-    res.status(201).json({ success: true, data });
+    res.status(201).json({
+      success: true,
+      data,
+      meta: {
+        temporaryPassword: tempPassword,
+        mustChangePassword: true
+      }
+    });
   } catch {
     res.status(500).json({ success: false, error: 'Error interno' });
   }
@@ -114,8 +187,10 @@ router.patch('/:id/activo', requireAdmin, async (req, res) => {
 router.patch('/:id/password', requireAdmin, async (req, res) => {
   try {
     const { password } = req.body;
-    if (!password || password.length < 6) {
-      return res.status(400).json({ success: false, error: 'Contraseña mínima 6 caracteres' });
+    const normalizedPassword = (password || '').trim();
+    const pwError = validatePassword(normalizedPassword);
+    if (pwError) {
+      return res.status(400).json({ success: false, error: pwError });
     }
 
     const usuario = await Usuario.findOne({
@@ -127,9 +202,12 @@ router.patch('/:id/password', requireAdmin, async (req, res) => {
       return res.status(403).json({ success: false, error: 'No podés modificar usuarios con rol elevado' });
     }
 
-    const passwordHash = await bcrypt.hash(password, 12);
-    await usuario.update({ passwordHash });
-    res.json({ success: true, data: { message: 'Contraseña actualizada' } });
+    const passwordHash = await bcrypt.hash(normalizedPassword, 12);
+    await usuario.update({ passwordHash, mustChangePassword: true });
+    res.json({
+      success: true,
+      data: { message: 'Contraseña temporal actualizada. El usuario deberá cambiarla al ingresar.' }
+    });
   } catch {
     res.status(500).json({ success: false, error: 'Error interno' });
   }

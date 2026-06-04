@@ -14,9 +14,10 @@ export default function Admin() {
   const { user } = useAuth()
   const [users, setUsers] = useState([])
   const [progress, setProgress] = useState({})
+  const [defaultUserPassword, setDefaultUserPassword] = useState('Bienvenido123')
   const [loading, setLoading] = useState(true)
   const [showNew, setShowNew] = useState(false)
-  const [newForm, setNewForm] = useState({ nombre: '', email: '', password: '', rol: 'operativo', funciones: [] })
+  const [newForm, setNewForm] = useState({ nombre: '', email: '', rol: 'operativo', funciones: [] })
   const [pwForm, setPwForm] = useState({ userId: null, password: '' })
 
   const isSuperAdmin = user?.rol === 'superadmin'
@@ -26,12 +27,14 @@ export default function Admin() {
   async function load() {
     setLoading(true)
     try {
-      const [usersRes, progRes] = await Promise.all([
+      const [usersRes, progRes, defaultPwRes] = await Promise.all([
         api.get('/usuarios'),
-        api.get('/checkin/progreso')
+        api.get('/checkin/progreso'),
+        api.get('/usuarios/default-password')
       ])
       setUsers(usersRes.data.data)
       setProgress(progRes.data.data)
+      setDefaultUserPassword(defaultPwRes.data?.data?.defaultPassword || 'Bienvenido123')
     } catch {
       // ignore
     } finally {
@@ -41,9 +44,13 @@ export default function Admin() {
 
   async function createUser() {
     try {
-      await api.post('/usuarios', newForm)
+      const res = await api.post('/usuarios', newForm)
       setShowNew(false)
-      setNewForm({ nombre: '', email: '', password: '', rol: 'operativo', funciones: [] })
+      setNewForm({ nombre: '', email: '', rol: 'operativo', funciones: [] })
+      const temp = res.data?.meta?.temporaryPassword
+      if (temp) {
+        alert(`Usuario creado. Contraseña temporal: ${temp}\nDebe cambiarla en el primer ingreso.`)
+      }
       load()
     } catch (err) {
       alert(err.response?.data?.error || 'Error al crear usuario')
@@ -233,7 +240,9 @@ export default function Admin() {
           <div className="flex flex-col gap-3">
             <Input placeholder="Nombre" value={newForm.nombre} onChange={e => setNewForm(f => ({ ...f, nombre: e.target.value }))} />
             <Input type="email" placeholder="Email" value={newForm.email} onChange={e => setNewForm(f => ({ ...f, email: e.target.value }))} />
-            <Input type="password" placeholder="Contraseña" value={newForm.password} onChange={e => setNewForm(f => ({ ...f, password: e.target.value }))} />
+            <p className="text-xs text-muted-foreground">
+              Se asignará una contraseña temporal ({defaultUserPassword}) y el usuario deberá cambiarla al ingresar.
+            </p>
             <div>
               <label className="text-xs font-medium mb-1 block">Rol</label>
               <select
@@ -276,11 +285,11 @@ export default function Admin() {
       <Dialog open={!!pwForm.userId} onOpenChange={() => setPwForm({ userId: null, password: '' })}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Cambiar contraseña</DialogTitle>
+            <DialogTitle>Asignar contraseña temporal</DialogTitle>
           </DialogHeader>
           <Input
             type="password"
-            placeholder="Nueva contraseña"
+            placeholder="Contraseña temporal"
             value={pwForm.password}
             onChange={e => setPwForm(f => ({ ...f, password: e.target.value }))}
             autoFocus
