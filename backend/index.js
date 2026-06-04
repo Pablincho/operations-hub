@@ -71,7 +71,12 @@ async function initOrganizacion() {
         organizacionId: org.id
       });
       console.log(`Usuario ${u.nombre} creado`);
-    } else if (!exists.mustChangePassword) {
+    } else if (exists.mustChangePassword) {
+      // Still on temp password — sync hash to current DEFAULT_USER_PASSWORD
+      await exists.update({ passwordHash });
+      console.log(`Usuario ${exists.nombre}: contraseña temporal sincronizada`);
+    } else {
+      // Already changed their password — only force re-change
       await exists.update({ mustChangePassword: true });
       console.log(`Usuario ${exists.nombre}: mustChangePassword activado`);
     }
