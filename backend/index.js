@@ -80,7 +80,7 @@ async function start() {
     await db.authenticate();
     console.log('DB conectada');
 
-    await db.sync({ alter: process.env.NODE_ENV !== 'production' });
+    await db.sync();
     console.log('Modelos sincronizados');
 
     await initOrganizacion();

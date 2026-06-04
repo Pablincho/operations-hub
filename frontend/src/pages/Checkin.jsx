@@ -71,7 +71,7 @@ function CheckinFuncion({ funcion, todaySession, onboardingDone, diasCompletos, 
         </CardTitle>
       </CardHeader>
       <CardContent className="p-4">
-        {/* No session yet — show start button */}
+        {/* No session yet — show start button or completed message */}
         {!session && (
           <div className="text-center py-4">
             {!onboardingDone ? (
@@ -80,14 +80,26 @@ function CheckinFuncion({ funcion, todaySession, onboardingDone, diasCompletos, 
                 <p className="text-xs text-muted-foreground mb-3">
                   Antes de empezar el check-in diario, respondé las 10 preguntas iniciales para documentar tu función.
                 </p>
+                <Button onClick={startCheckin} disabled={loading} className="gap-2" style={{ background: color, color: 'white' }}>
+                  {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                  Iniciar preguntas iniciales
+                </Button>
               </>
+            ) : diasCompletos >= 20 ? (
+              <div className="flex flex-col items-center gap-2">
+                <CheckCircle2 size={24} className="text-green-500" />
+                <p className="text-sm font-medium text-green-700">¡Check-in completo!</p>
+                <p className="text-xs text-muted-foreground">Completaste los 20 días de documentación para esta función.</p>
+              </div>
             ) : (
-              <p className="text-sm text-muted-foreground mb-3">No iniciaste el check-in de hoy</p>
+              <>
+                <p className="text-sm text-muted-foreground mb-3">No iniciaste el check-in de hoy</p>
+                <Button onClick={startCheckin} disabled={loading} className="gap-2" style={{ background: color, color: 'white' }}>
+                  {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                  Generar preguntas del día
+                </Button>
+              </>
             )}
-            <Button onClick={startCheckin} disabled={loading} className="gap-2" style={{ background: color, color: 'white' }}>
-              {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-              {!onboardingDone ? 'Iniciar preguntas iniciales' : 'Generar preguntas del día'}
-            </Button>
           </div>
         )}
 

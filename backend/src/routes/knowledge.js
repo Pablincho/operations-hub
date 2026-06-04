@@ -97,6 +97,10 @@ router.put('/:id', async (req, res) => {
       return res.status(403).json({ success: false, error: 'No tenés acceso a esa función' });
     }
 
+    if (entry.esSensible && req.user.rol !== 'superadmin') {
+      return res.status(403).json({ success: false, error: 'Solo superadmin puede modificar entradas sensibles' });
+    }
+
     const { titulo, contenido, categoria, esSensible } = req.body;
 
     // Solo superadmin puede cambiar esSensible
@@ -121,6 +125,10 @@ router.delete('/:id', async (req, res) => {
 
     if (req.user.rol === 'operativo' && !req.user.funciones?.includes(entry.funcion)) {
       return res.status(403).json({ success: false, error: 'No tenés acceso a esa función' });
+    }
+
+    if (entry.esSensible && req.user.rol !== 'superadmin') {
+      return res.status(403).json({ success: false, error: 'Solo superadmin puede eliminar entradas sensibles' });
     }
 
     await entry.destroy();

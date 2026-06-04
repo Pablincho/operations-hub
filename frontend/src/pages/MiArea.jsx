@@ -164,7 +164,7 @@ export default function MiArea() {
                     <p className="text-xs text-muted-foreground mt-0.5">{entry.funcion}</p>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
-                    {!entry.redactado && (
+                    {!entry._bloqueado && (
                       <>
                         <button onClick={e => { e.stopPropagation(); openEdit(entry) }} className="p-1 hover:text-foreground text-muted-foreground">
                           <Pencil size={14} />
@@ -184,7 +184,7 @@ export default function MiArea() {
                 {expandedId === entry.id && (
                   <div className="mt-3 pt-3 border-t">
                     <p className="text-sm whitespace-pre-wrap leading-relaxed">
-                      {entry.redactado
+                      {entry._bloqueado
                         ? <span className="text-muted-foreground italic">🔒 Información sensible restringida</span>
                         : entry.contenido}
                     </p>

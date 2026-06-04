@@ -67,7 +67,12 @@ router.post('/iniciar', async (req, res) => {
       const initialQs = INITIAL_QUESTIONS[funcion] || [];
       preguntas = initialQs.map(q => ({ pregunta: q, respuesta: '', respondida: false }));
     } else {
-      // Phase 2: generate 3 AI-adapted questions from all previous answers
+      // Phase 2: max 20 daily check-ins per function
+      const dailyCompleted = prevSessions.filter(s => s.preguntas.length === 3).length;
+      if (dailyCompleted >= 20) {
+        return res.status(400).json({ success: false, error: 'Ya completaste los 20 días de check-in para esta función' });
+      }
+      // Generate 3 AI-adapted questions from all previous answers
       const prevAnswers = prevSessions.flatMap(s => s.preguntas.filter(p => p.respondida));
       const questionTexts = await generarPreguntas(funcion, prevAnswers);
       preguntas = questionTexts.map(q => ({ pregunta: q, respuesta: '', respondida: false }));

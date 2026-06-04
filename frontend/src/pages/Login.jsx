@@ -4,6 +4,31 @@ import { useAuth } from '@/contexts/AuthContext'
 import api from '@/services/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Check } from 'lucide-react'
+
+function PasswordRequirements({ password }) {
+  const checks = [
+    { label: '8 caracteres mínimo', ok: password.length >= 8 },
+    { label: '1 mayúscula', ok: /[A-Z]/.test(password) },
+    { label: '1 minúscula', ok: /[a-z]/.test(password) },
+    { label: '1 número', ok: /[0-9]/.test(password) },
+  ]
+  return (
+    <ul className="flex flex-col gap-1 px-1">
+      {checks.map(({ label, ok }) => (
+        <li
+          key={label}
+          className={`flex items-center gap-1.5 text-xs transition-colors ${ok ? 'text-green-600' : 'text-muted-foreground'}`}
+        >
+          <span className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 transition-colors ${ok ? 'bg-green-500' : 'bg-gray-200'}`}>
+            {ok && <Check size={10} strokeWidth={3} className="text-white" />}
+          </span>
+          {label}
+        </li>
+      ))}
+    </ul>
+  )
+}
 
 function isValidEmail(email = '') {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
@@ -226,7 +251,7 @@ export default function Login() {
         {mode === 'firstPassword' && (
           <form onSubmit={handleFirstPassword} className="flex flex-col gap-3">
             <p className="text-xs text-muted-foreground">
-              Definí una contraseña definitiva (mínimo 8 caracteres, mayúscula, minúscula y número).
+              Definí una contraseña definitiva para tu cuenta.
             </p>
             <Input
               type="password"
@@ -236,6 +261,7 @@ export default function Login() {
               autoComplete="new-password"
               required
             />
+            <PasswordRequirements password={newPassword} />
             <Input
               type="password"
               placeholder="Confirmar contraseña"
@@ -302,6 +328,7 @@ export default function Login() {
               autoComplete="new-password"
               required
             />
+            <PasswordRequirements password={newPassword} />
             <Input
               type="password"
               placeholder="Confirmar contraseña"
