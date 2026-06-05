@@ -137,22 +137,20 @@ router.post('/recover/request', async (req, res) => {
 
     const usuario = await Usuario.findOne({ where: { email, activo: true } });
 
-    if (!usuario) {
-      return res.status(404).json({ success: false, error: 'No existe una cuenta asociada a ese email' });
+    if (usuario) {
+      const recoveryCode = String(randomInt(100000, 999999));
+      const resetTokenHash = await bcrypt.hash(recoveryCode, 10);
+      const resetTokenExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
+      await usuario.update({ resetTokenHash, resetTokenExpiresAt });
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[RECOVERY] Codigo para ${email}: ${recoveryCode}`);
+      }
+      await sendRecoveryEmail(email, recoveryCode);
     }
-
-    const recoveryCode = String(randomInt(100000, 999999));
-    const resetTokenHash = await bcrypt.hash(recoveryCode, 10);
-    const resetTokenExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
-    await usuario.update({ resetTokenHash, resetTokenExpiresAt });
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`[RECOVERY] Codigo para ${email}: ${recoveryCode}`);
-    }
-    await sendRecoveryEmail(email, recoveryCode);
 
     res.json({
       success: true,
-      data: { message: 'Se envió un código de recuperación a tu email. Válido por 15 minutos.' }
+      data: { message: 'Si el email está registrado, vas a recibir un código de recuperación válido por 15 minutos.' }
     });
   } catch {
     res.status(500).json({ success: false, error: 'Error interno' });
