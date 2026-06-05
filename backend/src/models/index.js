@@ -8,6 +8,7 @@ import { KnowledgeEntryModel } from './KnowledgeEntry.js';
 import { CheckinSessionModel } from './CheckinSession.js';
 import { ChatSessionModel } from './ChatSession.js';
 import { ChatMessageModel } from './ChatMessage.js';
+import { ManualModel } from './Manual.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -32,6 +33,7 @@ export const KnowledgeEntry = KnowledgeEntryModel(db);
 export const CheckinSession = CheckinSessionModel(db);
 export const ChatSession = ChatSessionModel(db);
 export const ChatMessage = ChatMessageModel(db);
+export const Manual = ManualModel(db);
 
 // Associations
 Organizacion.hasMany(Usuario, { foreignKey: 'organizacionId' });
@@ -51,3 +53,6 @@ ChatSession.belongsTo(Usuario, { foreignKey: 'usuarioId' });
 
 ChatSession.hasMany(ChatMessage, { foreignKey: 'chatSessionId' });
 ChatMessage.belongsTo(ChatSession, { foreignKey: 'chatSessionId' });
+
+Usuario.hasMany(Manual, { foreignKey: 'usuarioId' });
+Manual.belongsTo(Usuario, { foreignKey: 'usuarioId' });

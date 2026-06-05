@@ -27,6 +27,10 @@ export function KnowledgeEntryModel(sequelize) {
       type: DataTypes.TEXT,
       allowNull: false
     },
+    bloque: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
     esSensible: {
       type: DataTypes.BOOLEAN,
       defaultValue: false

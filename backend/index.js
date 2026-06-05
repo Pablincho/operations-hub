@@ -8,6 +8,7 @@ import usuariosRoutes from './src/routes/usuarios.js';
 import knowledgeRoutes from './src/routes/knowledge.js';
 import checkinRoutes from './src/routes/checkin.js';
 import chatRoutes from './src/routes/chat.js';
+import manualRoutes from './src/routes/manual.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -36,6 +37,7 @@ app.use('/api/usuarios', usuariosRoutes);
 app.use('/api/knowledge', knowledgeRoutes);
 app.use('/api/checkin', checkinRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/manual', manualRoutes);
 
 app.get('/api/health', (_req, res) => res.json({ success: true, data: 'OK' }));
 

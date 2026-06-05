@@ -63,19 +63,24 @@ router.post('/iniciar', async (req, res) => {
 
     let preguntas;
     if (!onboardingDone) {
-      // Phase 1: return 10 fixed initial questions (no AI call)
+      // Phase 1: return 10 fixed initial questions tagged by bloque
       const initialQs = INITIAL_QUESTIONS[funcion] || [];
-      preguntas = initialQs.map(q => ({ pregunta: q, respuesta: '', respondida: false }));
+      preguntas = initialQs.map(q => ({ pregunta: q.pregunta, bloque: q.bloque, respuesta: '', respondida: false }));
     } else {
       // Phase 2: max 20 daily check-ins per function
       const dailyCompleted = prevSessions.filter(s => s.preguntas.length === 3).length;
       if (dailyCompleted >= 20) {
         return res.status(400).json({ success: false, error: 'Ya completaste los 20 días de check-in para esta función' });
       }
-      // Generate 3 AI-adapted questions from all previous answers
+      // Generate 3 AI-adapted questions tagged by bloque
       const prevAnswers = prevSessions.flatMap(s => s.preguntas.filter(p => p.respondida));
-      const questionTexts = await generarPreguntas(funcion, prevAnswers);
-      preguntas = questionTexts.map(q => ({ pregunta: q, respuesta: '', respondida: false }));
+      const questionObjs = await generarPreguntas(funcion, prevAnswers);
+      preguntas = questionObjs.map(q => ({
+        pregunta: q.pregunta || q,
+        bloque: q.bloque || null,
+        respuesta: '',
+        respondida: false
+      }));
     }
 
     const session = await CheckinSession.create({
@@ -121,6 +126,7 @@ router.post('/:id/responder', async (req, res) => {
           organizacionId: req.user.organizacionId,
           funcion: session.funcion,
           categoria: 'checkin',
+          bloque: p.bloque || null,
           titulo: p.pregunta,
           contenido: p.respuesta,
           esSensible: false,

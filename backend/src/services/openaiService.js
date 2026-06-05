@@ -55,22 +55,32 @@ REGLAS ESTRICTAS:
   return response.choices[0].message.content;
 }
 
-export async function generarPreguntasIA(funcion, prevAnswers) {
+const BLOQUE_NOMBRES = {
+  B2: 'Funciones y responsabilidades',
+  B3: 'Perfil del puesto',
+  B4: 'Procesos y procedimientos',
+  B5: 'Relaciones e interfaces',
+  B6: 'Herramientas y sistemas'
+};
+
+export async function generarPreguntasIA(funcion, prevAnswers, bloqueObjetivo = 'B4') {
   const answeredCount = prevAnswers.length;
   const prevSummary = prevAnswers
     .slice(-5)
     .map(p => `"${p.pregunta}": "${(p.respuesta || '').slice(0, 60)}"`)
     .join(' | ');
 
+  const nombreBloque = BLOQUE_NOMBRES[bloqueObjetivo] || bloqueObjetivo;
+
   const prompt = `Sos un experto en procesos administrativos de empresas agropecuarias argentinas.
-Tu tarea es generar exactamente 3 preguntas para documentar el puesto de "${funcion}" en Don Emilio / GTF.
+Tu tarea es generar exactamente 3 preguntas para documentar el puesto de "${funcion}" en Don Emilio.
 
 Ya se documentaron ${answeredCount} respuestas sobre este puesto.
 ${prevSummary ? `Últimas respuestas: ${prevSummary}` : ''}
 
-Generá 3 preguntas concretas y operativas. Priorizá temas no cubiertos o profundizá donde las respuestas son escasas.
-Cubrí procedimientos paso a paso, datos de acceso (usuarios/contraseñas de sistemas), cuentas bancarias, vencimientos y decisiones del día a día.
-Devolvé SOLO un JSON: {"questions":["pregunta1","pregunta2","pregunta3"]}`;
+Enfocate en el bloque "${nombreBloque}" del manual de puesto.
+Generá 3 preguntas concretas y operativas que profundicen ese bloque.
+Devolvé SOLO un JSON: {"questions":[{"pregunta":"...","bloque":"${bloqueObjetivo}"},{"pregunta":"...","bloque":"${bloqueObjetivo}"},{"pregunta":"...","bloque":"${bloqueObjetivo}"}]}`;
 
   const response = await getOpenAI().chat.completions.create({
     model: 'gpt-4o',
