@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { Sequelize } from 'sequelize';
 import { verifyJWT, requireAdmin } from '../auth.js';
 import { CheckinSession, KnowledgeEntry } from '../models/index.js';
 import { generarPreguntas, INITIAL_QUESTIONS } from '../services/checkinService.js';
@@ -10,9 +11,15 @@ router.use(verifyJWT);
 router.get('/hoy', async (req, res) => {
   try {
     const today = new Date().toISOString().split('T')[0];
-    const [todaySessions, allCompleted] = await Promise.all([
+    const [todaySessions, allCompleted, entryRows] = await Promise.all([
       CheckinSession.findAll({ where: { usuarioId: req.user.id, fecha: today } }),
-      CheckinSession.findAll({ where: { usuarioId: req.user.id, completado: true } })
+      CheckinSession.findAll({ where: { usuarioId: req.user.id, completado: true } }),
+      KnowledgeEntry.findAll({
+        where: { usuarioId: req.user.id, organizacionId: req.user.organizacionId, categoria: 'checkin' },
+        attributes: ['funcion', [Sequelize.fn('COUNT', Sequelize.col('id')), 'count']],
+        group: ['funcion'],
+        raw: true
+      })
     ]);
 
     // Build onboarding status: a function has onboarding complete if it has ≥1 completed session with 10 questions
@@ -26,7 +33,12 @@ router.get('/hoy', async (req, res) => {
       }
     }
 
-    res.json({ success: true, data: todaySessions, onboardingStatus, dailyCounts });
+    const entryCounts = {};
+    for (const row of entryRows) {
+      entryCounts[row.funcion] = parseInt(row.count, 10);
+    }
+
+    res.json({ success: true, data: todaySessions, onboardingStatus, dailyCounts, entryCounts });
   } catch {
     res.status(500).json({ success: false, error: 'Error interno' });
   }

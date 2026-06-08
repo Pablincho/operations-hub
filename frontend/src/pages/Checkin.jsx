@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { FUNCIONES, FUNC_ICONS, FUNC_COLORS } from '@/lib/utils'
-import { CheckCircle2, Loader2, RefreshCw, BookOpen, CalendarCheck, FileText, Download, ChevronDown, ChevronUp, Sparkles } from 'lucide-react'
+import { CheckCircle2, Loader2, RefreshCw, BookOpen, CalendarCheck, FileText, Download, ChevronDown, ChevronUp, Sparkles, Send } from 'lucide-react'
+import { Progress } from '@/components/ui/progress'
 
 // ─── PDF styles ───────────────────────────────────────────────────────────────
 const pdfStyles = StyleSheet.create({
@@ -112,7 +113,7 @@ function ManualView({ funcion, color, onClose }) {
     <div className="mt-4 border-t pt-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold" style={{ color }}>Manual de puesto</h3>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Button
             size="sm"
             onClick={generarOActualizar}
@@ -124,16 +125,28 @@ function ManualView({ funcion, color, onClose }) {
             {manual ? 'Actualizar' : 'Generar manual'}
           </Button>
           {manual && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={exportarPDF}
-              disabled={exporting}
-              className="gap-1 text-xs h-7"
-            >
-              {exporting ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
-              PDF
-            </Button>
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={exportarPDF}
+                disabled={exporting}
+                className="gap-1 text-xs h-7"
+              >
+                {exporting ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+                PDF
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled
+                className="gap-1 text-xs h-7 opacity-50 cursor-not-allowed"
+                title="Disponible en Módulo 4 — Aprobación"
+              >
+                <Send size={12} />
+                Enviar a aprobación
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -175,7 +188,9 @@ function ManualView({ funcion, color, onClose }) {
 }
 
 // ─── CheckinFuncion ───────────────────────────────────────────────────────────
-function CheckinFuncion({ funcion, todaySession, onboardingDone, diasCompletos, onComplete }) {
+const META_ENTRADAS = 60
+
+function CheckinFuncion({ funcion, todaySession, onboardingDone, diasCompletos, entryCount, onComplete }) {
   const [session, setSession] = useState(todaySession)
   const [answers, setAnswers] = useState([])
   const [loading, setLoading] = useState(false)
@@ -225,10 +240,11 @@ function CheckinFuncion({ funcion, todaySession, onboardingDone, diasCompletos, 
   const isOnboarding = session ? session.preguntas.length === 10 : !onboardingDone
   const phaseLabel = isOnboarding ? 'Preguntas iniciales' : `Día ${diasCompletos + 1} de 20`
   const PhaseIcon = isOnboarding ? BookOpen : CalendarCheck
+  const pct = Math.min(100, Math.round((entryCount / META_ENTRADAS) * 100))
 
   return (
     <Card className="overflow-hidden">
-      <CardHeader className="py-3 px-4" style={{ background: color }}>
+      <CardHeader className="py-3 px-4 pb-0" style={{ background: color }}>
         <CardTitle className="text-sm font-semibold text-white flex items-center gap-2">
           {icon} {funcion}
           <span className="ml-auto flex items-center gap-1 text-xs font-normal opacity-80">
@@ -237,6 +253,12 @@ function CheckinFuncion({ funcion, todaySession, onboardingDone, diasCompletos, 
           </span>
           {session?.completado && <CheckCircle2 size={16} className="text-green-300" />}
         </CardTitle>
+        <div className="flex items-center gap-2 mt-2 pb-2">
+          <div className="flex-1 h-1.5 rounded-full bg-white/20 overflow-hidden">
+            <div className="h-full rounded-full bg-white/80 transition-all duration-500" style={{ width: `${pct}%` }} />
+          </div>
+          <span className="text-xs text-white/80 shrink-0">{pct}% documentado</span>
+        </div>
       </CardHeader>
       <CardContent className="p-4">
         {/* No session yet */}
@@ -349,6 +371,7 @@ export default function Checkin() {
   const [todaySessions, setTodaySessions] = useState([])
   const [onboardingStatus, setOnboardingStatus] = useState({})
   const [dailyCounts, setDailyCounts] = useState({})
+  const [entryCounts, setEntryCounts] = useState({})
   const [loading, setLoading] = useState(true)
   const funciones = user?.funciones || []
 
@@ -361,6 +384,7 @@ export default function Checkin() {
       setTodaySessions(res.data.data)
       setOnboardingStatus(res.data.onboardingStatus || {})
       setDailyCounts(res.data.dailyCounts || {})
+      setEntryCounts(res.data.entryCounts || {})
     } catch { /* ignore */ }
     finally { setLoading(false) }
   }
@@ -404,6 +428,7 @@ export default function Checkin() {
               todaySession={sessionForFuncion(fn)}
               onboardingDone={!!onboardingStatus[fn]}
               diasCompletos={dailyCounts[fn] || 0}
+              entryCount={entryCounts[fn] || 0}
               onComplete={load}
             />
           ))}
