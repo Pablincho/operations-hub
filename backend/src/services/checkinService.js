@@ -106,7 +106,7 @@ export const INITIAL_QUESTIONS = {
     { pregunta: '¿Con qué frecuencia realizás pagos a proveedores (diario, semanal)?', bloque: 'B4' },
     { pregunta: '¿Quién autoriza los pagos antes de que vos los ejecutés?', bloque: 'B5' },
     { pregunta: '¿Qué plataformas digitales usás para operar (homebanking, Interbanking, etc.)?', bloque: 'B6' },
-    { pregunta: '¿Retención de impuestos al pagar proveedores: ¿cuáles aplicás y en qué casos?', bloque: 'B4' },
+    { pregunta: 'Retención de impuestos al pagar proveedores: ¿cuáles aplicás y en qué casos?', bloque: 'B4' },
     { pregunta: '¿Manejás fondos en USD? ¿Cómo operás con ellos?', bloque: 'B4' },
     { pregunta: '¿Con qué frecuencia conciliás las cuentas bancarias?', bloque: 'B4' },
     { pregunta: '¿Cuál es el monto de caja chica y quién puede usarla?', bloque: 'B2' },

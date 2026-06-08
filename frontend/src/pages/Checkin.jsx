@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { pdf } from '@react-pdf/renderer'
-import { Document, Page, Text, View, StyleSheet, Font } from '@react-pdf/renderer'
+import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer'
 import api from '@/services/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
@@ -10,16 +10,21 @@ import { FUNCIONES, FUNC_ICONS, FUNC_COLORS } from '@/lib/utils'
 import { CheckCircle2, Loader2, RefreshCw, BookOpen, CalendarCheck, FileText, Download, ChevronDown, ChevronUp, Sparkles, Send } from 'lucide-react'
 import { Progress } from '@/components/ui/progress'
 
+const LOGO_URL = 'https://res.cloudinary.com/dmigevwah/image/upload/f_png/v1777495745/don_emilio/don_emilio_logo'
+
 // ─── PDF styles ───────────────────────────────────────────────────────────────
 const pdfStyles = StyleSheet.create({
-  page: { padding: 48, fontFamily: 'Helvetica', fontSize: 10, color: '#222' },
-  header: { marginBottom: 24, borderBottom: '1pt solid #1a3a1a', paddingBottom: 12 },
-  title: { fontSize: 18, fontFamily: 'Helvetica-Bold', color: '#1a3a1a', marginBottom: 4 },
-  subtitle: { fontSize: 10, color: '#666' },
-  bloque: { marginBottom: 18 },
-  bloqueTitle: { fontSize: 12, fontFamily: 'Helvetica-Bold', color: '#1a3a1a', marginBottom: 6 },
-  bloqueText: { lineHeight: 1.6, color: '#333' },
-  footer: { position: 'absolute', bottom: 32, left: 48, right: 48, fontSize: 8, color: '#999', borderTop: '0.5pt solid #ddd', paddingTop: 8 }
+  page: { padding: 48, paddingBottom: 72, fontFamily: 'Helvetica', fontSize: 10, color: '#222' },
+  header: { marginBottom: 20, borderBottom: '1pt solid #1a3a1a', paddingBottom: 14 },
+  headerRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 },
+  logo: { height: 54, width: 180, objectFit: 'contain' },
+  headerMeta: { textAlign: 'right', fontSize: 9, color: '#555', lineHeight: 1.5 },
+  title: { fontSize: 17, fontFamily: 'Helvetica-Bold', color: '#1a3a1a' },
+  bloque: { marginBottom: 16 },
+  bloqueTitle: { fontSize: 13, fontFamily: 'Helvetica-Bold', color: '#1a3a1a', marginBottom: 12 },
+  bloqueText: { lineHeight: 0.95, textAlign: 'justify', color: '#333' },
+  footer: { position: 'absolute', bottom: 28, left: 48, right: 48, fontSize: 8, color: '#999', borderTop: '0.5pt solid #ddd', paddingTop: 6, flexDirection: 'row', justifyContent: 'space-between' },
+  pageNumber: { fontSize: 8, color: '#999' }
 })
 
 const BLOQUE_NOMBRES = {
@@ -35,23 +40,35 @@ function ManualPDF({ funcion, contenido, generadoEn, version = 'Borrador' }) {
     .filter(([key]) => contenido[key])
     .map(([key, nombre]) => ({ key, nombre, texto: contenido[key] }))
 
+  const fecha = generadoEn ? new Date(generadoEn).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'
+
   return (
     <Document>
       <Page size="A4" style={pdfStyles.page}>
+        {/* Membrete / Header */}
         <View style={pdfStyles.header}>
-          <Text style={pdfStyles.title}>Manual de Puesto — {funcion}</Text>
-          <Text style={pdfStyles.subtitle}>
-            Don Emilio · Generado el {generadoEn ? new Date(generadoEn).toLocaleDateString('es-AR') : '—'} · Versión {version} · Estado: Borrador
-          </Text>
+          <View style={pdfStyles.headerRow}>
+            <Image src={LOGO_URL} style={pdfStyles.logo} />
+            <View style={pdfStyles.headerMeta}>
+              <Text>Versión: {version}</Text>
+              <Text>Generado: {fecha}</Text>
+            </View>
+          </View>
+          <Text style={pdfStyles.title}>Manual de Puesto: {funcion}</Text>
         </View>
+
+        {/* Bloques */}
         {bloques.map(({ key, nombre, texto }) => (
           <View key={key} style={pdfStyles.bloque}>
             <Text style={pdfStyles.bloqueTitle}>{nombre}</Text>
             <Text style={pdfStyles.bloqueText}>{texto}</Text>
           </View>
         ))}
-        <View style={pdfStyles.footer}>
-          <Text>MIRO — Sistema de Documentación Operativa · Don Emilio</Text>
+
+        {/* Footer */}
+        <View style={pdfStyles.footer} fixed>
+          <Text>Registro de Experiencia y Memoria Institucional (REMI) · Don Emilio</Text>
+          <Text render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
         </View>
       </Page>
     </Document>
