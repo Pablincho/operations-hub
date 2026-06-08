@@ -34,6 +34,22 @@ export function ManualModel(sequelize) {
     generadoEn: {
       type: DataTypes.DATE,
       allowNull: true
+    },
+    notaEnvio: {
+      type: DataTypes.TEXT,
+      allowNull: true
+    },
+    observaciones: {
+      type: DataTypes.TEXT,
+      allowNull: true
+    },
+    aprobadoPor: {
+      type: DataTypes.UUID,
+      allowNull: true
+    },
+    aprobadoEn: {
+      type: DataTypes.DATE,
+      allowNull: true
     }
   }, {
     tableName: 'Manuales'

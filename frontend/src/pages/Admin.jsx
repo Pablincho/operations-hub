@@ -57,6 +57,15 @@ export default function Admin() {
     }
   }
 
+  async function changeSupervisor(u, supervisorId) {
+    try {
+      await api.patch(`/usuarios/${u.id}/supervisor`, { supervisorId: supervisorId || null })
+      setUsers(prev => prev.map(x => x.id === u.id ? { ...x, supervisorId: supervisorId || null } : x))
+    } catch (err) {
+      alert(err.response?.data?.error || 'Error')
+    }
+  }
+
   async function toggleFuncion(u, fn) {
     const current = u.funciones || []
     const updated = current.includes(fn) ? current.filter(f => f !== fn) : [...current, fn]
@@ -165,6 +174,24 @@ export default function Admin() {
                       {!u.activo && <Badge variant="destructive" className="text-xs">inactivo</Badge>}
                     </div>
                     <p className="text-xs text-muted-foreground">{u.email}</p>
+
+                    {/* Supervisor */}
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground shrink-0">Supervisor:</span>
+                      <select
+                        value={u.supervisorId || ''}
+                        onChange={e => changeSupervisor(u, e.target.value)}
+                        className="text-xs border rounded px-2 py-0.5 bg-background flex-1 min-w-0"
+                      >
+                        <option value="">Sin supervisor</option>
+                        {users
+                          .filter(s => ['admin', 'superadmin'].includes(s.rol) && s.id !== u.id)
+                          .map(s => (
+                            <option key={s.id} value={s.id}>{s.nombre} ({s.rol})</option>
+                          ))
+                        }
+                      </select>
+                    </div>
 
                     {/* Function toggles */}
                     <div className="flex flex-wrap gap-1.5 mt-2">

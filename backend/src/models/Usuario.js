@@ -50,6 +50,10 @@ export function UsuarioModel(sequelize) {
     activo: {
       type: DataTypes.BOOLEAN,
       defaultValue: true
+    },
+    supervisorId: {
+      type: DataTypes.UUID,
+      allowNull: true
     }
   });
 }

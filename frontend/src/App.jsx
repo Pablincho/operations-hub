@@ -7,6 +7,7 @@ import Asistente from '@/pages/Asistente'
 import MiArea from '@/pages/MiArea'
 import Checkin from '@/pages/Checkin'
 import Admin from '@/pages/Admin'
+import Revisiones from '@/pages/Revisiones'
 
 function ProtectedRoute({ children, requireAdmin = false }) {
   const { user } = useAuth()
@@ -27,6 +28,7 @@ function AppRoutes() {
       <Route path="/mi-area" element={<ProtectedRoute><MiArea /></ProtectedRoute>} />
       <Route path="/checkin" element={<ProtectedRoute><Checkin /></ProtectedRoute>} />
       <Route path="/admin" element={<ProtectedRoute requireAdmin><Admin /></ProtectedRoute>} />
+      <Route path="/revisiones" element={<ProtectedRoute requireAdmin><Revisiones /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to={user ? '/dashboard' : '/login'} replace />} />
     </Routes>
   )

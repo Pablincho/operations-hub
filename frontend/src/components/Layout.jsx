@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
-import { Bot, BookOpen, CalendarCheck, LayoutDashboard, Settings, LogOut } from 'lucide-react'
+import { Bot, BookOpen, CalendarCheck, LayoutDashboard, Settings, LogOut, ClipboardCheck } from 'lucide-react'
 
 const navItems = [
   { to: '/dashboard', label: 'Inicio', icon: LayoutDashboard },
@@ -58,20 +58,30 @@ export default function Layout({ children }) {
             </NavLink>
           ))}
           {isAdmin && (
-            <NavLink to="/admin">
-              {({ isActive }) => (
-                <button
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
-                  style={{
-                    background: isActive ? 'rgba(255,255,255,0.2)' : 'transparent',
-                    color: '#e8d5a3'
-                  }}
-                >
-                  <Settings size={14} />
-                  Admin
-                </button>
-              )}
-            </NavLink>
+            <>
+              <NavLink to="/revisiones">
+                {({ isActive }) => (
+                  <button
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                    style={{ background: isActive ? 'rgba(255,255,255,0.2)' : 'transparent', color: '#e8d5a3' }}
+                  >
+                    <ClipboardCheck size={14} />
+                    Revisiones
+                  </button>
+                )}
+              </NavLink>
+              <NavLink to="/admin">
+                {({ isActive }) => (
+                  <button
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                    style={{ background: isActive ? 'rgba(255,255,255,0.2)' : 'transparent', color: '#e8d5a3' }}
+                  >
+                    <Settings size={14} />
+                    Admin
+                  </button>
+                )}
+              </NavLink>
+            </>
           )}
         </nav>
 
@@ -105,21 +115,30 @@ export default function Layout({ children }) {
           </NavLink>
         ))}
         {isAdmin && (
-          <NavLink to="/admin">
-            {({ isActive }) => (
-              <button
-                className="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg text-xs whitespace-nowrap"
-                style={{
-                  background: isActive ? '#f0f7f0' : 'transparent',
-                  color: isActive ? '#1a3a1a' : '#666',
-                  fontWeight: isActive ? 600 : 400
-                }}
-              >
-                <Settings size={16} />
-                Admin
-              </button>
-            )}
-          </NavLink>
+          <>
+            <NavLink to="/revisiones">
+              {({ isActive }) => (
+                <button
+                  className="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg text-xs whitespace-nowrap"
+                  style={{ background: isActive ? '#f0f7f0' : 'transparent', color: isActive ? '#1a3a1a' : '#666', fontWeight: isActive ? 600 : 400 }}
+                >
+                  <ClipboardCheck size={16} />
+                  Revisiones
+                </button>
+              )}
+            </NavLink>
+            <NavLink to="/admin">
+              {({ isActive }) => (
+                <button
+                  className="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg text-xs whitespace-nowrap"
+                  style={{ background: isActive ? '#f0f7f0' : 'transparent', color: isActive ? '#1a3a1a' : '#666', fontWeight: isActive ? 600 : 400 }}
+                >
+                  <Settings size={16} />
+                  Admin
+                </button>
+              )}
+            </NavLink>
+          </>
         )}
       </nav>
 

@@ -239,4 +239,32 @@ router.delete('/:id', requireAdmin, async (req, res) => {
   }
 });
 
+// PATCH assign supervisor
+router.patch('/:id/supervisor', requireAdmin, async (req, res) => {
+  try {
+    const { supervisorId } = req.body;
+
+    if (supervisorId === req.params.id) {
+      return res.status(400).json({ success: false, error: 'Un usuario no puede ser su propio supervisor' });
+    }
+
+    const usuario = await Usuario.findOne({
+      where: { id: req.params.id, organizacionId: req.user.organizacionId }
+    });
+    if (!usuario) return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
+
+    if (supervisorId) {
+      const supervisor = await Usuario.findOne({
+        where: { id: supervisorId, organizacionId: req.user.organizacionId }
+      });
+      if (!supervisor) return res.status(404).json({ success: false, error: 'Supervisor no encontrado' });
+    }
+
+    await usuario.update({ supervisorId: supervisorId || null });
+    res.json({ success: true, data: { supervisorId: usuario.supervisorId } });
+  } catch {
+    res.status(500).json({ success: false, error: 'Error interno' });
+  }
+});
+
 export default router;
