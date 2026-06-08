@@ -1,104 +1,139 @@
-# Operations Hub - Documento de Proyecto
+# REMI — Registro de Experiencia y Memoria Institucional
 
-## 1. Objetivo
+Sistema de captura y documentación de conocimiento de puesto para Don Emilio (agropecuaria).
+Proyecto piloto: documentar los puestos operativos a través de check-ins adaptativos y generar manuales automáticamente con IA.
 
-Operations Hub es una plataforma interna para Don Emilio (agropecuaria) orientada a:
+---
 
-- Capturar y organizar conocimiento operativo por funcion.
-- Permitir consultas con IA sobre procedimientos internos.
-- Facilitar transferencia de roles y continuidad operativa.
-- Ejecutar un sistema de check-in de conocimiento por etapas.
-
-## 2. Stack Tecnologico
+## 1. Stack Tecnológico
 
 ### Frontend
-
-- React + Vite
-- React Router
+- React 19 + Vite
+- React Router 7
 - Tailwind CSS v4
-- shadcn/ui (componentes manuales)
+- shadcn/ui (componentes manuales en `frontend/src/components/ui/`)
 - Axios
+- `@react-pdf/renderer` — exportación PDF del manual
 
 ### Backend
-
 - Node.js + Express (ESM)
-- Sequelize ORM
-- PostgreSQL
-- JWT para autenticacion
-- bcryptjs para hash de contrasenas
-- OpenAI SDK
+- Sequelize ORM + PostgreSQL
+- JWT (8h) para autenticación
+- bcryptjs para hash de contraseñas
+- OpenAI SDK (GPT-4o)
+- Resend SDK — emails transaccionales
 
 ### Deploy
-
 - Railway (frontend y backend separados)
 
-## 3. Arquitectura General
+---
 
-- `frontend/`: app React (UI, rutas, auth client, paginas).
+## 2. Arquitectura General
+
+- `frontend/`: app React (UI, rutas, auth client, páginas).
 - `backend/`: API REST, modelos, reglas de negocio, IA.
-- `.env` en la raiz del repo, consumido por frontend (via Vite) y backend (via `backend/loadEnv.js`).
+- `.env` en la raíz del repo, consumido por frontend (via Vite) y backend (via `backend/loadEnv.js`).
+- `backend/src/config/database.cjs`: config de Sequelize CLI con dotenv path correcto (`../../../.env`).
 
-## 4. Funcionalidades Implementadas
+---
 
-### 4.1 Autenticacion y Usuarios
+## 3. Modelos de Datos
 
-- Login por email + contrasena.
-- JWT con expiracion de 8 horas.
-- Roles: `superadmin`, `admin`, `operativo`.
-- Restricciones por rol en endpoints administrativos.
-- Alta de usuarios desde Admin.
-- Activacion/desactivacion de usuarios.
-- Asignacion de funciones por usuario.
-- Cambio de contrasena desde panel admin.
+### Usuario
+- `id`, `email`, `passwordHash`, `nombre`, `rol` (superadmin/admin/operativo)
+- `funciones` (array de strings)
+- `organizacionId`, `activo`
+- `mustChangePassword`, `resetTokenHash`, `resetTokenExpiresAt`
+- `supervisorId` (FK nullable a Usuario — N+1 para flujo de aprobación)
 
-### 4.2 Primer Ingreso y Seguridad de Contrasena
+### KnowledgeEntry
+- `id`, `organizacionId`, `funcion`, `categoria`, `titulo`, `contenido`
+- `bloque` (nullable: B2/B3/B4/B5/B6 — bloque del manual al que pertenece)
+- `esSensible`, `usuarioId`
 
-Se incorporo flujo de contrasena temporal + contrasena definitiva:
+### CheckinSession
+- `id`, `usuarioId`, `funcion`, `fecha` (DATEONLY)
+- `preguntas` (JSONB: `[{pregunta, bloque, respuesta, respondida}]`)
+- `completado`
 
-- Usuario nuevo se crea con contrasena temporal.
-- En primer login, se obliga cambio de contrasena (`mustChangePassword`).
-- Validacion de contrasena robusta:
-  - minimo 8 caracteres
-  - al menos 1 mayuscula
-  - al menos 1 minuscula
-  - al menos 1 numero
+### Manual
+- `id`, `usuarioId`, `organizacionId`, `funcion`
+- `version` (string: 'Borrador', '1.0', '1.1', etc.)
+- `estado` (ENUM: borrador / en_revision / vigente / obsoleto)
+- `contenido` (JSONB: `{B2: "texto...", B4: "texto...", ...}`)
+- `generadoEn`, `notaEnvio`, `observaciones`, `aprobadoPor`, `aprobadoEn`
 
-Endpoints agregados en auth:
+### Organizacion
+- `id`, `nombre`, `slug`, `config`
+- Tabla: `Organizaciones` (tableName explícito en el modelo para evitar conflicto con Sequelize auto-plural)
 
-- `POST /api/auth/first-password`
-- `POST /api/auth/recover/request`
-- `POST /api/auth/recover/reset`
+### ChatSession / ChatMessage
+- Sesiones de chat del asistente IA por usuario
 
-### 4.3 Recuperacion de Contrasena
+---
 
-- Solicitud de recuperacion por email.
-- Generacion de codigo temporal (15 min).
-- Guardado de hash del codigo y vencimiento en DB.
-- Reset de contrasena con codigo + nueva contrasena.
+## 4. Módulos Implementados (REMI)
 
-Nota: en desarrollo se expone el codigo en respuesta para testing; en produccion no.
+### Módulo 1 — Captura de Conocimiento ✅
+- 10 preguntas iniciales de onboarding por función, etiquetadas por bloque (B2-B6)
+- 3 preguntas diarias adaptativas generadas por IA, enfocadas en el bloque con menos cobertura
+- Límite de 20 días de check-in diario por función
+- Indicador de progreso % visible al ocupante (meta: 60 entradas = 100%)
+- Preguntas organizadas por bloques del manual:
+  - B2: Funciones y responsabilidades
+  - B3: Perfil del puesto
+  - B4: Procesos y procedimientos
+  - B5: Relaciones e interfaces
+  - B6: Herramientas y sistemas
 
-### 4.4 Check-in Operativo (2 Fases)
+### Módulo 2 — Generación del Manual ✅
+- Generación automática con GPT-4o por bloque
+- Vista previa integrada en el check-in (bloques colapsables)
+- Exportación PDF con logo de Don Emilio, metadata, texto justificado, número de página
+- Pie de página: "Registro de Experiencia y Memoria Institucional (REMI) · Don Emilio"
 
-Se adapto el flujo para el requerimiento de onboarding + diario:
+### Módulo 3 — Control de Versiones ✅
+- Versionado automático: 'Borrador' → '1.0' en primer envío → '1.1' en ediciones post-aprobación
+- Estados: borrador / en_revision / vigente / obsoleto
+- Al regenerar: versión anterior archivada como 'obsoleto', nunca eliminada
+- Historial de versiones visible al ocupante
 
-- Fase inicial: 10 preguntas base (una sola vez por funcion).
-- Fase diaria: 3 preguntas por dia adaptativas.
-- Preguntas diarias se generan considerando respuestas previas.
-- UI actualizada para distinguir estado de onboarding y avance diario.
+### Módulo 4 — Aprobación ✅
+- Asignación de N+1 (supervisor) por usuario desde el panel Admin
+- Ocupante envía el manual con nota opcional → estado cambia a 'en_revision', versión asignada '1.0'
+- Página "Revisiones" para admins/superadmins: lista de manuales pendientes con bloques expandibles
+- Supervisor puede Aprobar (→ vigente) o Devolver con observaciones (→ borrador)
+- Emails transaccionales: envío, aprobación, devolución
+- Bloqueo de edición mientras el manual está 'en_revision'
+- Observaciones del revisor visibles al ocupante en el check-in
 
-## 5. Cambios de UI/UX Implementados
+---
 
-- Logo Cloudinary en header principal.
-- Logo Cloudinary en login.
-- Favicon Cloudinary en pestana del navegador.
-- Cursor tipo mano en elementos clickeables de forma global.
-- Pagina de Asistente expandida al ancho disponible.
+## 5. Autenticación y Seguridad
 
-## 6. Endpoints Relevantes
+### Flujo de contraseña
+- Primer login: `mustChangePassword = true` → obligado a cambiar contraseña
+- Checklist en tiempo real de requisitos (8 chars, mayúscula, minúscula, número)
+- Indicador de coincidencia de contraseñas en tiempo real
+- Toggle de visibilidad en todos los campos de contraseña
+
+### Recuperación de contraseña
+- Código de 6 dígitos (solo numérico en el input), válido 15 minutos
+- Enviado por email via Resend desde `donemilio@email.tropabot.com`
+- Siempre devuelve mensaje genérico (no revela si el email existe)
+- En dev: código visible en la consola del backend
+
+### Roles y permisos
+- `superadmin`: acceso total, puede crear admins, ver entradas sensibles
+- `admin`: gestión de usuarios, puede asignar supervisores, revisar manuales
+- `operativo`: solo sus funciones asignadas, no puede ver entradas sensibles de otras funciones
+- Entradas sensibles (`esSensible: true`): solo editables/eliminables por superadmin
+
+---
+
+## 6. Endpoints
 
 ### Auth
-
 - `POST /api/auth/login`
 - `GET /api/auth/me`
 - `POST /api/auth/first-password`
@@ -106,84 +141,139 @@ Se adapto el flujo para el requerimiento de onboarding + diario:
 - `POST /api/auth/recover/reset`
 
 ### Usuarios
-
 - `GET /api/usuarios`
 - `POST /api/usuarios`
+- `GET /api/usuarios/default-password`
 - `PATCH /api/usuarios/:id/funciones`
 - `PATCH /api/usuarios/:id/activo`
 - `PATCH /api/usuarios/:id/password`
+- `PATCH /api/usuarios/:id/supervisor`
 - `DELETE /api/usuarios/:id`
-- `GET /api/usuarios/default-password`
 
 ### Check-in
-
-- `GET /api/checkin/hoy`
+- `GET /api/checkin/hoy` — sesiones de hoy + onboardingStatus + dailyCounts + entryCounts
 - `POST /api/checkin/iniciar`
 - `POST /api/checkin/:id/responder`
-- `GET /api/checkin/progreso`
+- `GET /api/checkin/progreso` (admin+)
 
-## 7. Modelo de Datos - Extensiones Recientes
+### Knowledge
+- `GET /api/knowledge`
+- `POST /api/knowledge`
+- `PUT /api/knowledge/:id`
+- `DELETE /api/knowledge/:id`
 
-Tabla `Usuarios` ahora contempla:
+### Manual
+- `GET /api/manual/pendientes` (admin+)
+- `GET /api/manual/:funcion`
+- `GET /api/manual/:funcion/historial`
+- `POST /api/manual/:funcion/generar`
+- `POST /api/manual/:funcion/enviar`
+- `POST /api/manual/:id/aprobar` (admin+)
+- `POST /api/manual/:id/devolver` (admin+)
 
-- `mustChangePassword` (bool)
-- `resetTokenHash` (string nullable)
-- `resetTokenExpiresAt` (date nullable)
+### Chat
+- `GET /api/chat/session`
+- `POST /api/chat/session`
+- `POST /api/chat/mensaje`
 
-## 8. Migraciones
+---
 
-Se creo migracion para los campos de flujo de contrasena:
+## 7. Migraciones (en orden)
 
-- `backend/src/migrations/20260602000007-add-password-flow-fields-to-usuarios.cjs`
+```
+20260527000001-create-organizaciones.cjs
+20260527000002-create-usuarios.cjs
+20260527000003-create-knowledge-entries.cjs
+20260527000004-create-checkin-sessions.cjs
+20260527000005-create-chat-sessions.cjs
+20260527000006-create-chat-messages.cjs
+20260602000007-add-password-flow-fields-to-usuarios.cjs
+20260604000008-drop-organizacions-table.cjs        ← elimina tabla duplicada Organizacions
+20260605000009-add-bloque-to-knowledge-entries.cjs
+20260605000010-create-manuales.cjs
+20260608000011-update-manuales-estado-enum.cjs     ← agrega en_revision y obsoleto
+20260608000012-add-supervisorid-to-usuarios.cjs
+20260608000013-add-approval-fields-to-manuales.cjs
+```
 
-Esta migracion fue ajustada para ser idempotente (no rompe si columna ya existe).
+Para correr: `cd backend && npm run migrate`
 
-## 9. Variables de Entorno Importantes
+---
+
+## 8. Variables de Entorno
 
 ### Backend
-
 - `DATABASE_URL`
 - `JWT_SECRET`
 - `OPENAI_API_KEY`
-- `PORT`
-- `FRONTEND_URL`
-- `DEFAULT_USER_PASSWORD`
+- `RESEND_API_KEY` — SDK de Resend para emails
+- `PORT` (default 3001)
+- `NODE_ENV`
+- `FRONTEND_URL`, `FRONTEND_URL_ALT`
+- `DEFAULT_USER_PASSWORD` — contraseña temporal para nuevos usuarios
 
 ### Frontend
-
 - `VITE_API_URL`
 
-Nota de seguridad: nunca versionar claves reales en git.
+---
 
-## 10. Problemas Detectados y Resoluciones
+## 9. Seed de Usuarios (backend/index.js)
 
-### CORS en local
+Se ejecuta en cada arranque. Crea la org "Don Emilio" y los usuarios seed si no existen.
+Si un usuario seed existe y tiene `mustChangePassword = true`, sincroniza el hash al `DEFAULT_USER_PASSWORD` actual.
+Si tiene `mustChangePassword = false`, lo fuerza a cambiar en el próximo login.
 
-- Error por origen `localhost:5174` no permitido.
-- Se ajusto backend para permitir localhost con cualquier puerto en desarrollo.
+Usuarios seed:
+- `danilomarchisone@gmail.com` — superadmin
+- `arielzsilavecz@gmail.com` — admin
+- `pablodo@gmail.com` — admin
 
-### Conexion rechazada a `localhost:3001`
+---
 
-- Causa: backend caido o puerto ocupado.
-- Solucion: reiniciar backend y liberar puerto cuando hubo `EADDRINUSE`.
+## 10. Email (Resend)
 
-### DEFAULT_USER_PASSWORD mostrando fallback
+From: `Don Emilio <donemilio@email.tropabot.com>`
+Dominio: `email.tropabot.com`
 
-- Se implemento lectura robusta desde backend con fallback por prioridad.
-- Endpoint dedicado para frontend admin: `GET /api/usuarios/default-password`.
+Emails implementados:
+- Recuperación de contraseña (código 6 dígitos)
+- Manual enviado a revisión (al supervisor)
+- Manual aprobado (al ocupante)
+- Manual devuelto con observaciones (al ocupante)
 
-## 11. Estado Actual del Proyecto
+---
 
-- Frontend compila correctamente.
-- Backend arranca y responde health.
-- Migracion de seguridad aplicada.
-- Flujo de autenticacion avanzado implementado.
-- Check-in 2 fases implementado.
-- Branding visual incorporado (logo + favicon).
+## 11. Páginas del Frontend
 
-## 12. Siguientes Recomendaciones
+- `/login` — autenticación, primer ingreso, recuperación de contraseña
+- `/dashboard` — bienvenida, accesos rápidos, progreso por función
+- `/checkin` — check-in por función, vista del manual, envío a aprobación
+- `/asistente` — chat IA con base de conocimiento
+- `/mi-area` — base de conocimiento manual (CRUD)
+- `/admin` — gestión de usuarios, asignación de funciones y supervisores (admin+)
+- `/revisiones` — manuales pendientes de aprobación (admin+)
 
-- Integrar envio real de email para recuperacion en produccion.
-- Agregar tests de integracion para auth/check-in.
-- Revisar bundle del frontend (warning por tamano de chunk).
-- Endurecer politicas de secretos y rotacion de claves.
+---
+
+## 12. Puestos Don Emilio (Piloto)
+
+- N+1: Danilo Marchisone (Gerente General / superadmin)
+- N: Agustín Paolini (Tesorería)
+- N: Jorgelina Scantamburlo (Coordinadora Administración y Finanzas)
+- N: Antonella Pacetti (Coordinadora Operaciones Agropecuarias)
+- N: Christian Bianqui (Impositivo)
+- N: Santiago Rudy (Administrativo Junior)
+- N: Melina Vironi (RRHH)
+- N: Matías Barboza (Administrativo El Coro)
+
+Funciones disponibles en el sistema: Tesorería, Impuestos, Sueldos, Autorizaciones.
+
+---
+
+## 13. Notas Técnicas
+
+- `db.sync()` sin `alter` — nunca altera tablas existentes. Usar migraciones para cambios de esquema.
+- El modelo `Organizacion` tiene `tableName: 'Organizaciones'` explícito para evitar conflicto con auto-plural de Sequelize.
+- `backend/src/config/database.cjs` usa `require('path').resolve(__dirname, '../../../.env')` para encontrar el .env desde el CLI de Sequelize.
+- Entradas sensibles en knowledge: el backend devuelve `_bloqueado: true` (no `redactado`) cuando el contenido está restringido.
+- PDF generado client-side con `@react-pdf/renderer`. Logo via Cloudinary con `f_png` para compatibilidad.
