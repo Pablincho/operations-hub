@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { Op } from 'sequelize';
 import { verifyJWT } from '../auth.js';
 import { Manual, KnowledgeEntry } from '../models/index.js';
 import { generarManual } from '../services/manualService.js';
@@ -6,12 +7,16 @@ import { generarManual } from '../services/manualService.js';
 const router = Router();
 router.use(verifyJWT);
 
-// GET current manual for a function
+// GET current manual (latest non-obsoleto)
 router.get('/:funcion', async (req, res) => {
   try {
     const { funcion } = req.params;
     const manual = await Manual.findOne({
-      where: { usuarioId: req.user.id, funcion },
+      where: {
+        usuarioId: req.user.id,
+        funcion,
+        estado: { [Op.ne]: 'obsoleto' }
+      },
       order: [['createdAt', 'DESC']]
     });
     res.json({ success: true, data: manual || null });
@@ -20,7 +25,22 @@ router.get('/:funcion', async (req, res) => {
   }
 });
 
-// POST generate/regenerate manual for a function
+// GET version history for a function
+router.get('/:funcion/historial', async (req, res) => {
+  try {
+    const { funcion } = req.params;
+    const historial = await Manual.findAll({
+      where: { usuarioId: req.user.id, funcion },
+      order: [['createdAt', 'DESC']],
+      attributes: ['id', 'version', 'estado', 'generadoEn', 'createdAt']
+    });
+    res.json({ success: true, data: historial });
+  } catch {
+    res.status(500).json({ success: false, error: 'Error interno' });
+  }
+});
+
+// POST generate/regenerate — archives previous borrador and creates new version
 router.post('/:funcion/generar', async (req, res) => {
   try {
     const { funcion } = req.params;
@@ -44,24 +64,22 @@ router.post('/:funcion/generar', async (req, res) => {
       });
     }
 
-    // Upsert: update existing draft or create new
-    const existing = await Manual.findOne({
-      where: { usuarioId: req.user.id, funcion, estado: 'borrador' }
-    });
+    // Archive any existing borrador → obsoleto
+    await Manual.update(
+      { estado: 'obsoleto' },
+      { where: { usuarioId: req.user.id, funcion, estado: 'borrador' } }
+    );
 
-    let manual;
-    if (existing) {
-      await existing.update({ contenido, generadoEn: new Date() });
-      manual = existing;
-    } else {
-      manual = await Manual.create({
-        usuarioId: req.user.id,
-        organizacionId: req.user.organizacionId,
-        funcion,
-        contenido,
-        generadoEn: new Date()
-      });
-    }
+    // Create new borrador version
+    const manual = await Manual.create({
+      usuarioId: req.user.id,
+      organizacionId: req.user.organizacionId,
+      funcion,
+      version: 'Borrador',
+      estado: 'borrador',
+      contenido,
+      generadoEn: new Date()
+    });
 
     res.json({ success: true, data: manual });
   } catch (err) {

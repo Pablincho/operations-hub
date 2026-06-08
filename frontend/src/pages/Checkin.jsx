@@ -30,7 +30,7 @@ const BLOQUE_NOMBRES = {
   B6: 'Herramientas y sistemas'
 }
 
-function ManualPDF({ funcion, contenido, generadoEn }) {
+function ManualPDF({ funcion, contenido, generadoEn, version = 'Borrador' }) {
   const bloques = Object.entries(BLOQUE_NOMBRES)
     .filter(([key]) => contenido[key])
     .map(([key, nombre]) => ({ key, nombre, texto: contenido[key] }))
@@ -41,7 +41,7 @@ function ManualPDF({ funcion, contenido, generadoEn }) {
         <View style={pdfStyles.header}>
           <Text style={pdfStyles.title}>Manual de Puesto — {funcion}</Text>
           <Text style={pdfStyles.subtitle}>
-            Don Emilio · Generado el {generadoEn ? new Date(generadoEn).toLocaleDateString('es-AR') : '—'} · Versión 1.0 · Estado: Borrador
+            Don Emilio · Generado el {generadoEn ? new Date(generadoEn).toLocaleDateString('es-AR') : '—'} · Versión {version} · Estado: Borrador
           </Text>
         </View>
         {bloques.map(({ key, nombre, texto }) => (
@@ -58,21 +58,34 @@ function ManualPDF({ funcion, contenido, generadoEn }) {
   )
 }
 
+const ESTADO_LABELS = {
+  borrador: { label: 'Borrador', bg: 'bg-amber-100', text: 'text-amber-800' },
+  en_revision: { label: 'En revisión', bg: 'bg-blue-100', text: 'text-blue-800' },
+  vigente: { label: 'Vigente', bg: 'bg-green-100', text: 'text-green-800' },
+  obsoleto: { label: 'Obsoleto', bg: 'bg-gray-100', text: 'text-gray-500' }
+}
+
 // ─── ManualView ───────────────────────────────────────────────────────────────
-function ManualView({ funcion, color, onClose }) {
+function ManualView({ funcion, color }) {
   const [manual, setManual] = useState(null)
+  const [historial, setHistorial] = useState([])
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [expanded, setExpanded] = useState({})
+  const [showHistorial, setShowHistorial] = useState(false)
 
   useEffect(() => { loadManual() }, [funcion])
 
   async function loadManual() {
     setLoading(true)
     try {
-      const res = await api.get(`/manual/${encodeURIComponent(funcion)}`)
-      setManual(res.data.data)
+      const [manualRes, histRes] = await Promise.all([
+        api.get(`/manual/${encodeURIComponent(funcion)}`),
+        api.get(`/manual/${encodeURIComponent(funcion)}/historial`)
+      ])
+      setManual(manualRes.data.data)
+      setHistorial(histRes.data.data || [])
     } catch { /* ignore */ }
     finally { setLoading(false) }
   }
@@ -82,6 +95,9 @@ function ManualView({ funcion, color, onClose }) {
     try {
       const res = await api.post(`/manual/${encodeURIComponent(funcion)}/generar`)
       setManual(res.data.data)
+      // Refresh historial
+      const histRes = await api.get(`/manual/${encodeURIComponent(funcion)}/historial`)
+      setHistorial(histRes.data.data || [])
     } catch (err) {
       alert(err.response?.data?.error || 'Error al generar el manual')
     } finally { setGenerating(false) }
@@ -92,7 +108,7 @@ function ManualView({ funcion, color, onClose }) {
     setExporting(true)
     try {
       const blob = await pdf(
-        <ManualPDF funcion={funcion} contenido={manual.contenido} generadoEn={manual.generadoEn} />
+        <ManualPDF funcion={funcion} contenido={manual.contenido} generadoEn={manual.generadoEn} version={manual.version} />
       ).toBlob()
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -100,7 +116,7 @@ function ManualView({ funcion, color, onClose }) {
       a.download = `manual-${funcion.toLowerCase().replace(/\s+/g, '-')}.pdf`
       a.click()
       URL.revokeObjectURL(url)
-    } catch (err) {
+    } catch {
       alert('Error al exportar el PDF')
     } finally { setExporting(false) }
   }
@@ -109,15 +125,29 @@ function ManualView({ funcion, color, onClose }) {
     ? Object.entries(BLOQUE_NOMBRES).filter(([key]) => manual.contenido[key])
     : []
 
+  const estadoInfo = manual ? (ESTADO_LABELS[manual.estado] || ESTADO_LABELS.borrador) : null
+  const versionesAnteriores = historial.filter(h => h.estado === 'obsoleto')
+
   return (
     <div className="mt-4 border-t pt-4">
+      {/* Header */}
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold" style={{ color }}>Manual de puesto</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-semibold" style={{ color }}>Manual de puesto</h3>
+          {manual && (
+            <>
+              <span className="text-xs font-medium text-muted-foreground">{manual.version}</span>
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${estadoInfo.bg} ${estadoInfo.text}`}>
+                {estadoInfo.label}
+              </span>
+            </>
+          )}
+        </div>
         <div className="flex gap-2 flex-wrap">
           <Button
             size="sm"
             onClick={generarOActualizar}
-            disabled={generating}
+            disabled={generating || manual?.estado === 'en_revision'}
             className="gap-1 text-xs h-7"
             style={{ background: color, color: 'white' }}
           >
@@ -164,6 +194,8 @@ function ManualView({ funcion, color, onClose }) {
           <p className="text-xs text-muted-foreground mb-1">
             Última generación: {new Date(manual.generadoEn).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}
           </p>
+
+          {/* Bloques del manual */}
           {bloques.map(([key, nombre]) => (
             <div key={key} className="border rounded-lg overflow-hidden">
               <button
@@ -181,6 +213,33 @@ function ManualView({ funcion, color, onClose }) {
               )}
             </div>
           ))}
+
+          {/* Historial de versiones */}
+          {versionesAnteriores.length > 0 && (
+            <div className="mt-2">
+              <button
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => setShowHistorial(v => !v)}
+              >
+                {showHistorial ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                {versionesAnteriores.length} versión{versionesAnteriores.length > 1 ? 'es' : ''} anterior{versionesAnteriores.length > 1 ? 'es' : ''}
+              </button>
+              {showHistorial && (
+                <div className="mt-2 flex flex-col gap-1.5 pl-2 border-l-2 border-muted">
+                  {versionesAnteriores.map(v => (
+                    <div key={v.id} className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${ESTADO_LABELS.obsoleto.bg} ${ESTADO_LABELS.obsoleto.text}`}>
+                        {v.version}
+                      </span>
+                      <span>
+                        {new Date(v.generadoEn || v.createdAt).toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

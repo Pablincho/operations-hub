@@ -21,10 +21,10 @@ export function ManualModel(sequelize) {
     },
     version: {
       type: DataTypes.STRING,
-      defaultValue: '1.0'
+      defaultValue: 'Borrador'
     },
     estado: {
-      type: DataTypes.ENUM('borrador', 'vigente'),
+      type: DataTypes.ENUM('borrador', 'en_revision', 'vigente', 'obsoleto'),
       defaultValue: 'borrador'
     },
     contenido: {
