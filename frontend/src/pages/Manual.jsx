@@ -290,13 +290,26 @@ function ManualSection({ funcion, color }) {
 }
 
 export default function Manual() {
-  const { user } = useAuth()
+  const { user, refreshUser } = useAuth()
   const funciones = user?.funciones || []
   const [selectedFn, setSelectedFn] = useState(funciones[0] || '')
+  const [initializing, setInitializing] = useState(true)
+
+  useEffect(() => {
+    refreshUser().then(fresh => {
+      const fns = fresh?.funciones || []
+      if (fns.length > 0) setSelectedFn(fns[0])
+      setInitializing(false)
+    })
+  }, [])
 
   useEffect(() => {
     if (!selectedFn && funciones.length > 0) setSelectedFn(funciones[0])
   }, [funciones])
+
+  if (initializing) {
+    return <div className="max-w-3xl mx-auto p-6"><p className="text-muted-foreground text-sm">Cargando...</p></div>
+  }
 
   if (funciones.length === 0) {
     return (

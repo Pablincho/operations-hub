@@ -272,7 +272,7 @@ function CheckinFuncion({ funcion, todaySession, onboardingDone, diasCompletos, 
 
 // ─── Checkin page ─────────────────────────────────────────────────────────────
 export default function Checkin() {
-  const { user } = useAuth()
+  const { user, refreshUser } = useAuth()
   const [todaySessions, setTodaySessions] = useState([])
   const [onboardingStatus, setOnboardingStatus] = useState({})
   const [dailyCounts, setDailyCounts] = useState({})
@@ -285,6 +285,7 @@ export default function Checkin() {
   async function load() {
     setLoading(true)
     try {
+      await refreshUser()
       const res = await api.get('/checkin/hoy')
       setTodaySessions(res.data.data)
       setOnboardingStatus(res.data.onboardingStatus || {})
