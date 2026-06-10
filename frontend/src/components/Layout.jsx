@@ -1,11 +1,10 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
-import { Bot, BookText, CalendarCheck, LayoutDashboard, Settings, LogOut, ClipboardCheck } from 'lucide-react'
+import { Bot, BookText, LayoutDashboard, Settings, LogOut, ClipboardCheck } from 'lucide-react'
 
 const navItems = [
   { to: '/dashboard', label: 'Inicio', icon: LayoutDashboard },
-  { to: '/checkin', label: 'Check-in', icon: CalendarCheck },
   { to: '/manual', label: 'Mi Manual', icon: BookText },
   { to: '/asistente', label: 'Asistente', icon: Bot },
 ]

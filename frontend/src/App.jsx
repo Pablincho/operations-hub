@@ -4,8 +4,7 @@ import Layout from '@/components/Layout'
 import Login from '@/pages/Login'
 import Dashboard from '@/pages/Dashboard'
 import Asistente from '@/pages/Asistente'
-import Checkin from '@/pages/Checkin'
-import Manual from '@/pages/Manual'
+import MiManual from '@/pages/Manual'
 import Admin from '@/pages/Admin'
 import Revisiones from '@/pages/Revisiones'
 
@@ -25,8 +24,7 @@ function AppRoutes() {
       <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/asistente" element={<ProtectedRoute><Asistente /></ProtectedRoute>} />
-      <Route path="/checkin" element={<ProtectedRoute><Checkin /></ProtectedRoute>} />
-      <Route path="/manual" element={<ProtectedRoute><Manual /></ProtectedRoute>} />
+      <Route path="/manual" element={<ProtectedRoute><MiManual /></ProtectedRoute>} />
       <Route path="/admin" element={<ProtectedRoute requireAdmin><Admin /></ProtectedRoute>} />
       <Route path="/revisiones" element={<ProtectedRoute requireAdmin><Revisiones /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to={user ? '/dashboard' : '/login'} replace />} />

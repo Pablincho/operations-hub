@@ -1,8 +1,7 @@
 import './loadEnv.js';
 import express from 'express';
 import cors from 'cors';
-import bcrypt from 'bcryptjs';
-import { db, Organizacion, Usuario } from './src/models/index.js';
+import { db, Organizacion } from './src/models/index.js';
 import authRoutes from './src/routes/auth.js';
 import usuariosRoutes from './src/routes/usuarios.js';
 import knowledgeRoutes from './src/routes/knowledge.js';
@@ -45,39 +44,10 @@ app.get('/api/health', (_req, res) => res.json({ success: true, data: 'OK' }));
 app.use((_req, res) => res.status(404).json({ success: false, error: 'Ruta no encontrada' }));
 
 async function initOrganizacion() {
-  const FUNCIONES = ['Tesorería', 'Administración y Finanzas', 'Operaciones Agropecuarias', 'Impositivo', 'Administrativo Junior', 'RRHH', 'Administrativo El Coro'];
-  const defaultSeedPassword = process.env.DEFAULT_USER_PASSWORD || 'Bienvenido123';
-
-  let org = await Organizacion.findOne({ where: { slug: 'donemilio' } });
+  const org = await Organizacion.findOne({ where: { slug: 'donemilio' } });
   if (!org) {
-    org = await Organizacion.create({ nombre: 'Don Emilio', slug: 'donemilio' });
+    await Organizacion.create({ nombre: 'Don Emilio', slug: 'donemilio' });
     console.log('Organización Don Emilio creada');
-  }
-
-  const seedUsers = [
-    { email: 'danilomarchisone@gmail.com', nombre: 'Danilo', rol: 'superadmin' },
-    { email: 'arielzsilavecz@gmail.com', nombre: 'Ariel', rol: 'admin' },
-    { email: 'pablodo@gmail.com', nombre: 'Pablo', rol: 'admin' }
-  ];
-
-  const passwordHash = await bcrypt.hash(defaultSeedPassword, 12);
-
-  for (const u of seedUsers) {
-    const exists = await Usuario.findOne({ where: { email: u.email } });
-    if (!exists) {
-      await Usuario.create({
-        ...u,
-        passwordHash,
-        mustChangePassword: true,
-        funciones: FUNCIONES,
-        organizacionId: org.id
-      });
-      console.log(`Usuario ${u.nombre} creado`);
-    } else if (exists.mustChangePassword) {
-      // Still on temp password — sync hash to current DEFAULT_USER_PASSWORD
-      await exists.update({ passwordHash });
-      console.log(`Usuario ${exists.nombre}: contraseña temporal sincronizada`);
-    }
   }
 }
 

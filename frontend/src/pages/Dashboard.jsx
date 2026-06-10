@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { FUNCIONES, FUNC_ICONS, FUNC_COLORS } from '@/lib/utils'
-import { Bot, BookOpen, CalendarCheck, ArrowRight } from 'lucide-react'
+import { Bot, BookText, CalendarCheck, ArrowRight } from 'lucide-react'
 
 export default function Dashboard() {
   const { user, refreshUser } = useAuth()
@@ -60,7 +60,7 @@ export default function Dashboard() {
       {/* Check-in banner */}
       {funciones.length > 0 && pendingCheckin && (
         <div
-          onClick={() => navigate('/checkin')}
+          onClick={() => navigate('/manual')}
           className="flex items-center gap-3 p-4 rounded-xl mb-6 cursor-pointer hover:opacity-90 transition-opacity"
           style={{ background: '#fff8e1', border: '1px solid #f0d060' }}
         >
@@ -86,29 +86,18 @@ export default function Dashboard() {
             </div>
           </CardContent>
         </Card>
-        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/mi-area')}>
-          <CardContent className="flex items-center gap-3 p-4">
-            <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: '#f0f7f0' }}>
-              <BookOpen size={20} style={{ color: '#1a3a1a' }} />
-            </div>
-            <div>
-              <p className="font-semibold text-sm">Mi Área</p>
-              <p className="text-xs text-muted-foreground">Base de conocimiento</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/checkin')}>
+        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/manual')}>
           <CardContent className="flex items-center gap-3 p-4">
             <div
               className="w-10 h-10 rounded-lg flex items-center justify-center"
               style={{ background: pendingCheckin ? '#fff8e1' : '#f0f7f0' }}
             >
-              <CalendarCheck size={20} style={{ color: pendingCheckin ? '#c0922a' : '#1a3a1a' }} />
+              <BookText size={20} style={{ color: pendingCheckin ? '#c0922a' : '#1a3a1a' }} />
             </div>
             <div>
-              <p className="font-semibold text-sm">Check-in</p>
+              <p className="font-semibold text-sm">Mi Manual</p>
               <p className="text-xs text-muted-foreground">
-                {pendingCheckin ? 'Pendiente hoy' : 'Completado hoy ✓'}
+                {pendingCheckin ? 'Check-in pendiente hoy' : 'Check-in completado ✓'}
               </p>
             </div>
           </CardContent>
