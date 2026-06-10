@@ -145,11 +145,6 @@ router.patch('/:id/funciones', requireAdmin, async (req, res) => {
     });
     if (!usuario) return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
 
-    // Only superadmin can modify admin/superadmin users
-    if (['admin', 'superadmin'].includes(usuario.rol) && req.user.rol !== 'superadmin') {
-      return res.status(403).json({ success: false, error: 'No podés modificar usuarios con rol elevado' });
-    }
-
     await usuario.update({ funciones });
     const { passwordHash: _, ...data } = usuario.toJSON();
     res.json({ success: true, data });

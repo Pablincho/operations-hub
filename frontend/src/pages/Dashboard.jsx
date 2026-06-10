@@ -23,10 +23,10 @@ export default function Dashboard() {
       try {
         await refreshUser()
         const [progRes, checkinRes] = await Promise.all([
-          isAdmin ? api.get('/checkin/progreso') : Promise.resolve({ data: { data: {} } }),
+          isAdmin ? api.get('/checkin/progreso') : Promise.resolve(null),
           api.get('/checkin/hoy')
         ])
-        setProgress(progRes.data.data)
+        setProgress(isAdmin ? progRes.data.data : (checkinRes.data.entryCounts || {}))
 
         // Build map of function → completed today
         const todaySessions = checkinRes.data.data

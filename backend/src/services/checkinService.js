@@ -1,6 +1,14 @@
 import { generarPreguntasIA } from './openaiService.js';
 
-export const FUNCIONES = ['Tesorería', 'Impuestos', 'Sueldos', 'Autorizaciones'];
+export const FUNCIONES = [
+  'Tesorería',
+  'Administración y Finanzas',
+  'Operaciones Agropecuarias',
+  'Impositivo',
+  'Administrativo Junior',
+  'RRHH',
+  'Administrativo El Coro'
+];
 
 // B2 = Funciones y responsabilidades
 // B3 = Perfil del puesto
@@ -31,7 +39,51 @@ export const BASE_QUESTIONS = {
     { pregunta: '¿Cómo operás con pagos en USD si los hay?', bloque: 'B4' },
     { pregunta: '¿Qué información guardás de cada operación y dónde?', bloque: 'B6' }
   ],
-  Impuestos: [
+  'Administración y Finanzas': [
+    { pregunta: '¿Cuál es el proceso de seguimiento contable de una empresa del grupo paso a paso?', bloque: 'B4' },
+    { pregunta: '¿Cómo detectás si hay un desvío en los estados contables?', bloque: 'B4' },
+    { pregunta: '¿Qué pasos seguís para autorizar un pago?', bloque: 'B4' },
+    { pregunta: '¿Cuál es el límite de importe que podés autorizar sin escalar?', bloque: 'B2' },
+    { pregunta: '¿Cómo verificás que una factura es correcta antes de autorizarla?', bloque: 'B4' },
+    { pregunta: '¿Cómo registrás una venta de hacienda en el sistema?', bloque: 'B4' },
+    { pregunta: '¿Qué documentación generás en cada venta de hacienda?', bloque: 'B4' },
+    { pregunta: '¿Cómo controlás que las ventas de hacienda estén correctamente liquidadas?', bloque: 'B4' },
+    { pregunta: '¿Qué informes mensuales generás y a quién se los entregás?', bloque: 'B5' },
+    { pregunta: '¿Cómo coordinás con Tesorería cuando autorizás un pago?', bloque: 'B5' },
+    { pregunta: '¿Cómo hacés el cierre mensual de cada empresa?', bloque: 'B4' },
+    { pregunta: '¿Qué herramientas usás para llevar el seguimiento de varias empresas a la vez?', bloque: 'B6' },
+    { pregunta: '¿Cómo accedés a Albor y qué módulos usás?', bloque: 'B6' },
+    { pregunta: '¿Qué pasa si encontrás un error en un estado contable ya cerrado?', bloque: 'B4' },
+    { pregunta: '¿Cómo manejás las diferencias de cambio si hay operaciones en USD?', bloque: 'B4' },
+    { pregunta: '¿Qué información le reportás a Danilo y con qué frecuencia?', bloque: 'B5' },
+    { pregunta: '¿Cómo archivás la documentación de cada empresa?', bloque: 'B6' },
+    { pregunta: '¿Qué hacés cuando hay una discrepancia entre lo registrado y lo que informa el área?', bloque: 'B4' },
+    { pregunta: '¿Cómo coordinás con el estudio contable externo si lo hay?', bloque: 'B5' },
+    { pregunta: '¿Qué es lo más importante que no puede quedar sin hacer en una semana?', bloque: 'B2' }
+  ],
+  'Operaciones Agropecuarias': [
+    { pregunta: '¿Cómo iniciás el proceso de compra de hacienda: quién lo solicita y cómo?', bloque: 'B4' },
+    { pregunta: '¿Qué datos registrás de cada compra de hacienda?', bloque: 'B4' },
+    { pregunta: '¿Cómo controlás los insumos agrícolas que entran y salen del campo?', bloque: 'B4' },
+    { pregunta: '¿Qué proveedores de insumos agrícolas trabajan con Don Emilio?', bloque: 'B5' },
+    { pregunta: '¿Cómo registrás una compra de granos paso a paso?', bloque: 'B4' },
+    { pregunta: '¿Cómo seguís una entrega de granos desde el acuerdo hasta la entrega final?', bloque: 'B4' },
+    { pregunta: '¿Qué documentación te exigís para cerrar una operación de compra/venta?', bloque: 'B4' },
+    { pregunta: '¿Cómo registrás las operaciones en el sistema?', bloque: 'B6' },
+    { pregunta: '¿Qué reportes generás para Danilo sobre las operaciones agropecuarias?', bloque: 'B5' },
+    { pregunta: '¿Cómo coordinás con los consignatarios o acopiadores?', bloque: 'B5' },
+    { pregunta: '¿Qué pasa si hay una diferencia entre lo pactado y lo entregado?', bloque: 'B4' },
+    { pregunta: '¿Cómo manejás el seguimiento de insumos en múltiples campos?', bloque: 'B4' },
+    { pregunta: '¿Qué información necesitás tener actualizada antes de cerrar una compra?', bloque: 'B4' },
+    { pregunta: '¿Cómo coordinás con Tesorería para los pagos de hacienda o granos?', bloque: 'B5' },
+    { pregunta: '¿Qué temporadas del año son más críticas para tu función?', bloque: 'B2' },
+    { pregunta: '¿Cómo llevás el registro de existencias de hacienda?', bloque: 'B4' },
+    { pregunta: '¿Qué controles hacés sobre las entregas para evitar errores?', bloque: 'B4' },
+    { pregunta: '¿Cómo archivás la documentación de cada operación?', bloque: 'B6' },
+    { pregunta: '¿Qué sistemas externos (plataformas, portales) usás para operar?', bloque: 'B6' },
+    { pregunta: '¿Cuál es el proceso más complejo de tu función y por qué?', bloque: 'B2' }
+  ],
+  Impositivo: [
     { pregunta: '¿Qué impuestos presentás mensualmente y en qué orden?', bloque: 'B2' },
     { pregunta: '¿Cuáles son las fechas de vencimiento de cada impuesto mensual?', bloque: 'B4' },
     { pregunta: '¿Cómo entrás a AFIP y qué hacés primero?', bloque: 'B4' },
@@ -53,49 +105,71 @@ export const BASE_QUESTIONS = {
     { pregunta: '¿Cómo controlás que todos los vencimientos del mes estén cubiertos?', bloque: 'B4' },
     { pregunta: '¿Qué hacés si hay un vencimiento un feriado o fin de semana?', bloque: 'B4' }
   ],
-  Sueldos: [
-    { pregunta: '¿Cuándo se liquidan los sueldos y cuál es el proceso?', bloque: 'B4' },
-    { pregunta: '¿Qué sistema usás para liquidar sueldos?', bloque: 'B6' },
-    { pregunta: '¿Cómo cargás las novedades del mes (licencias, ausencias, horas extra)?', bloque: 'B4' },
-    { pregunta: '¿Cómo generás los recibos de sueldo?', bloque: 'B4' },
-    { pregunta: '¿Cómo se pagan los sueldos: transferencia, efectivo u otro?', bloque: 'B4' },
-    { pregunta: '¿Qué cargas sociales presentás y cuándo?', bloque: 'B2' },
-    { pregunta: '¿Cómo presentás el F931 en AFIP?', bloque: 'B4' },
-    { pregunta: '¿Qué es el SIPA y cómo lo gestionás?', bloque: 'B4' },
-    { pregunta: '¿Cómo calculás las vacaciones y qué documentación generás?', bloque: 'B4' },
-    { pregunta: '¿Cómo manejás un aguinaldo paso a paso?', bloque: 'B4' },
-    { pregunta: '¿Qué hacés cuando hay una incorporación de personal nueva?', bloque: 'B4' },
-    { pregunta: '¿Cómo registrás una baja de personal?', bloque: 'B4' },
-    { pregunta: '¿Qué archivos o reportes generás al cerrar la liquidación mensual?', bloque: 'B6' },
-    { pregunta: '¿A quién le reportás la liquidación y en qué formato?', bloque: 'B5' },
-    { pregunta: '¿Cómo se manejan los anticipos de sueldo?', bloque: 'B4' },
-    { pregunta: '¿Qué convenio colectivo aplica y cómo impacta en la liquidación?', bloque: 'B3' },
-    { pregunta: '¿Cómo registrás los sueldos en Albor?', bloque: 'B6' },
-    { pregunta: '¿Qué pasa si hay un error en la liquidación ya pagada?', bloque: 'B4' },
-    { pregunta: '¿Cómo controlás que todos los empleados estén dados de alta en AFIP?', bloque: 'B4' },
-    { pregunta: '¿Qué documentación pedís a un empleado nuevo para darlo de alta?', bloque: 'B4' }
+  'Administrativo Junior': [
+    { pregunta: '¿Cómo organizás el orden de tus tareas al inicio del día?', bloque: 'B4' },
+    { pregunta: '¿Cómo procesás una factura que llega a la empresa?', bloque: 'B4' },
+    { pregunta: '¿Qué tipo de archivos o carpetas digitales mantenés ordenados?', bloque: 'B6' },
+    { pregunta: '¿Cómo hacés un trámite en AFIP o en organismos públicos?', bloque: 'B4' },
+    { pregunta: '¿Qué reportes o planillas completás regularmente?', bloque: 'B4' },
+    { pregunta: '¿Cómo manejás pedidos urgentes de otras áreas?', bloque: 'B4' },
+    { pregunta: '¿Qué herramientas digitales usás para tu trabajo diario?', bloque: 'B6' },
+    { pregunta: '¿Cómo registrás una operación en Albor?', bloque: 'B6' },
+    { pregunta: '¿A quién escala cuando tenés una duda que no podés resolver solo?', bloque: 'B5' },
+    { pregunta: '¿Qué información archivás y durante cuánto tiempo?', bloque: 'B6' },
+    { pregunta: '¿Cómo comunicás novedades al área de Tesorería?', bloque: 'B5' },
+    { pregunta: '¿Qué tareas hacés de soporte al área de Administración y Finanzas?', bloque: 'B2' },
+    { pregunta: '¿Cómo manejás los vencimientos de trámites o presentaciones?', bloque: 'B4' },
+    { pregunta: '¿Qué hacés cuando recibís una solicitud que no sabés cómo resolver?', bloque: 'B4' },
+    { pregunta: '¿Cómo ordenás la documentación física de la empresa?', bloque: 'B6' },
+    { pregunta: '¿Qué tareas repetitivas hacés que podrían automatizarse?', bloque: 'B4' },
+    { pregunta: '¿Cómo aprendiste las tareas que hacés actualmente?', bloque: 'B3' },
+    { pregunta: '¿Qué conocimientos o herramientas te resultaron más difíciles de aprender?', bloque: 'B3' },
+    { pregunta: '¿Cómo coordinás con el área de RRHH?', bloque: 'B5' },
+    { pregunta: '¿Qué haría que el trabajo sea más eficiente en tu puesto?', bloque: 'B2' }
   ],
-  Autorizaciones: [
-    { pregunta: '¿Qué pagos requieren tu autorización y cuáles no?', bloque: 'B2' },
-    { pregunta: '¿Cuál es el límite de importe para autorizar sin consultar a Danilo?', bloque: 'B2' },
-    { pregunta: '¿Cómo recibís las solicitudes de pago para autorizar?', bloque: 'B4' },
-    { pregunta: '¿Qué verificás antes de autorizar un pago?', bloque: 'B4' },
-    { pregunta: '¿Cómo confirmás que una factura fue recibida y aprobada por el área?', bloque: 'B4' },
-    { pregunta: '¿Dónde registrás las autorizaciones que otorgás?', bloque: 'B6' },
-    { pregunta: '¿Qué hacés si detectás una factura con datos incorrectos?', bloque: 'B4' },
-    { pregunta: '¿Cómo manejás una solicitud urgente fuera del proceso normal?', bloque: 'B4' },
-    { pregunta: '¿Qué pasa si el proveedor no está dado de alta?', bloque: 'B4' },
-    { pregunta: '¿Cómo comunicás al tesorero que un pago está autorizado?', bloque: 'B5' },
-    { pregunta: '¿Qué documentación archivás de cada autorización?', bloque: 'B6' },
-    { pregunta: '¿Cómo controlás que no se dupliquen pagos?', bloque: 'B4' },
-    { pregunta: '¿Qué criterios usás para priorizar pagos cuando hay restricción de fondos?', bloque: 'B4' },
-    { pregunta: '¿Cómo reportás a Danilo los pagos autorizados del mes?', bloque: 'B5' },
-    { pregunta: '¿Qué tipos de gastos nunca autorizás sin aprobación superior?', bloque: 'B2' },
-    { pregunta: '¿Cómo manejás las autorizaciones de pagos en USD?', bloque: 'B4' },
-    { pregunta: '¿Qué pasa si el responsable de área no puede aprobar una factura?', bloque: 'B4' },
-    { pregunta: '¿Cómo auditás pagos ya realizados?', bloque: 'B4' },
-    { pregunta: '¿Cuál es el proceso para una compra nueva con proveedor nuevo?', bloque: 'B4' },
-    { pregunta: '¿Cómo manejás conflictos entre lo autorizado y lo pagado?', bloque: 'B4' }
+  RRHH: [
+    { pregunta: '¿Cuál es el proceso completo para incorporar un empleado nuevo?', bloque: 'B4' },
+    { pregunta: '¿Cómo gestionás el alta en AFIP de un empleado nuevo?', bloque: 'B4' },
+    { pregunta: '¿Qué documentación le pedís a un empleado al ingresar?', bloque: 'B4' },
+    { pregunta: '¿Cómo se calcula y procesa una liquidación de sueldo?', bloque: 'B4' },
+    { pregunta: '¿Qué hacés cuando un empleado pide licencia médica?', bloque: 'B4' },
+    { pregunta: '¿Cómo controlás las vacaciones de todo el personal?', bloque: 'B4' },
+    { pregunta: '¿Qué pasa cuando hay una desvinculación: cuál es el proceso paso a paso?', bloque: 'B4' },
+    { pregunta: '¿Cómo presentás las cargas sociales mensualmente?', bloque: 'B4' },
+    { pregunta: '¿Qué convenio aplica a cada tipo de empleado de la empresa?', bloque: 'B3' },
+    { pregunta: '¿Cómo manejás los accidentes laborales y la ART?', bloque: 'B4' },
+    { pregunta: '¿Cómo llevás el registro de asistencias?', bloque: 'B4' },
+    { pregunta: '¿Qué reportes de RRHH generás mensualmente y a quién?', bloque: 'B5' },
+    { pregunta: '¿Cómo coordinás con el área contable para el pago de sueldos?', bloque: 'B5' },
+    { pregunta: '¿Qué sistema de RRHH usás y qué módulos?', bloque: 'B6' },
+    { pregunta: '¿Cómo comunicás novedades o cambios normativos al personal?', bloque: 'B5' },
+    { pregunta: '¿Cómo manejás el aguinaldo: plazos, cálculo y documentación?', bloque: 'B4' },
+    { pregunta: '¿Qué herramientas usás para mantener actualizado el legajo de cada empleado?', bloque: 'B6' },
+    { pregunta: '¿Cómo gestionás los préstamos o anticipos a empleados?', bloque: 'B4' },
+    { pregunta: '¿Qué controles hacés para asegurar el cumplimiento laboral?', bloque: 'B4' },
+    { pregunta: '¿Cuáles son las tareas de RRHH que más riesgo legal implican?', bloque: 'B2' }
+  ],
+  'Administrativo El Coro': [
+    { pregunta: '¿Cuáles son las operaciones propias de El Coro que administrás?', bloque: 'B2' },
+    { pregunta: '¿Cómo procesás facturas y documentación en El Coro?', bloque: 'B4' },
+    { pregunta: '¿Cómo registrás las operaciones de El Coro en el sistema central?', bloque: 'B4' },
+    { pregunta: '¿Con qué frecuencia te comunicás con la administración central?', bloque: 'B5' },
+    { pregunta: '¿Qué información reportás diariamente o semanalmente a la administración?', bloque: 'B5' },
+    { pregunta: '¿Qué decisiones podés tomar vos directamente y cuáles escalás?', bloque: 'B2' },
+    { pregunta: '¿Cómo manejás el efectivo o caja chica en El Coro?', bloque: 'B4' },
+    { pregunta: '¿Qué controles de stock o inventario hacés?', bloque: 'B4' },
+    { pregunta: '¿Cómo coordinás las entregas o retiros en El Coro?', bloque: 'B4' },
+    { pregunta: '¿Qué herramientas digitales tenés disponibles en El Coro?', bloque: 'B6' },
+    { pregunta: '¿Cómo archivás la documentación física en El Coro?', bloque: 'B6' },
+    { pregunta: '¿Qué pasa cuando hay una diferencia entre lo registrado y lo real?', bloque: 'B4' },
+    { pregunta: '¿Cómo coordinás con Tesorería cuando necesitás fondos?', bloque: 'B5' },
+    { pregunta: '¿Qué tareas hacés que son únicas de El Coro respecto a la oficina central?', bloque: 'B2' },
+    { pregunta: '¿Cómo manejás las relaciones con proveedores o clientes locales?', bloque: 'B5' },
+    { pregunta: '¿Qué información necesitás de la administración central para operar?', bloque: 'B5' },
+    { pregunta: '¿Cómo reportás novedades urgentes a Danilo o al área correspondiente?', bloque: 'B5' },
+    { pregunta: '¿Qué controles hacés al cierre de cada día o semana?', bloque: 'B4' },
+    { pregunta: '¿Cómo registrás operaciones de hacienda o granos desde El Coro?', bloque: 'B4' },
+    { pregunta: '¿Qué mejorarías en el flujo de información entre El Coro y la administración central?', bloque: 'B2' }
   ]
 };
 
@@ -112,7 +186,31 @@ export const INITIAL_QUESTIONS = {
     { pregunta: '¿Cuál es el monto de caja chica y quién puede usarla?', bloque: 'B2' },
     { pregunta: '¿Con quién coordinás más seguido en tu trabajo diario (contador, gerente, otros)?', bloque: 'B5' }
   ],
-  Impuestos: [
+  'Administración y Finanzas': [
+    { pregunta: '¿Qué empresas del grupo llevás en tus seguimientos contables?', bloque: 'B2' },
+    { pregunta: '¿Qué sistema usás para los seguimientos contables?', bloque: 'B6' },
+    { pregunta: '¿Qué tipos de pagos requieren tu autorización y cuál es el límite de importe?', bloque: 'B2' },
+    { pregunta: '¿Cómo te llegan las solicitudes de autorización de pagos?', bloque: 'B4' },
+    { pregunta: '¿Cómo registrás las ventas de hacienda y en qué sistema?', bloque: 'B4' },
+    { pregunta: '¿Con qué frecuencia hacés el seguimiento de cada empresa?', bloque: 'B4' },
+    { pregunta: '¿A quién reportás los estados contables y con qué periodicidad?', bloque: 'B5' },
+    { pregunta: '¿Qué herramientas digitales usás para tu trabajo diario?', bloque: 'B6' },
+    { pregunta: '¿Con quién coordinás más seguido dentro de la empresa?', bloque: 'B5' },
+    { pregunta: '¿Cuál es la tarea más crítica en tiempo dentro de tu función?', bloque: 'B2' }
+  ],
+  'Operaciones Agropecuarias': [
+    { pregunta: '¿Cómo es el proceso de compra de hacienda: quién decide y cómo lo registrás?', bloque: 'B4' },
+    { pregunta: '¿Qué insumos agrícolas seguís y cómo controlás el stock?', bloque: 'B4' },
+    { pregunta: '¿Cómo registrás las compras y ventas de granos?', bloque: 'B4' },
+    { pregunta: '¿Qué sistemas usás para el seguimiento de operaciones agropecuarias?', bloque: 'B6' },
+    { pregunta: '¿Cómo coordinás las entregas de hacienda o granos?', bloque: 'B4' },
+    { pregunta: '¿Con qué proveedores o consignatarios trabajás habitualmente?', bloque: 'B5' },
+    { pregunta: '¿Qué información le reportás a Danilo y con qué frecuencia?', bloque: 'B5' },
+    { pregunta: '¿Qué documentación manejás en cada operación de compra/venta?', bloque: 'B4' },
+    { pregunta: '¿Cómo registrás las operaciones en Albor u otro sistema?', bloque: 'B6' },
+    { pregunta: '¿Cuál es la mayor complejidad de tu función en el día a día?', bloque: 'B2' }
+  ],
+  Impositivo: [
     { pregunta: '¿Cuáles son los impuestos que presentás mensualmente?', bloque: 'B2' },
     { pregunta: '¿Cuáles son los sistemas que usás para presentar (AFIP, Rentas, otros)?', bloque: 'B6' },
     { pregunta: '¿Cómo ingresás a AFIP: con clave fiscal o a través de un estudio?', bloque: 'B6' },
@@ -124,29 +222,41 @@ export const INITIAL_QUESTIONS = {
     { pregunta: '¿Cómo pagás los impuestos: VEP, débito automático, Interbanking?', bloque: 'B4' },
     { pregunta: '¿Con quién coordinás cuando tenés una duda técnica impositiva?', bloque: 'B5' }
   ],
-  Sueldos: [
-    { pregunta: '¿Cuántos empleados liquidás y bajo qué convenio laboral?', bloque: 'B3' },
-    { pregunta: '¿Qué sistema usás para liquidar sueldos?', bloque: 'B6' },
-    { pregunta: '¿Cuándo es el cierre de novedades cada mes y quién te las informa?', bloque: 'B4' },
-    { pregunta: '¿Cómo pagás los sueldos: transferencia bancaria, efectivo u otro?', bloque: 'B4' },
-    { pregunta: '¿Presentás el F931 vos mismo o lo hace el contador?', bloque: 'B4' },
-    { pregunta: '¿Manejás ART, obra social y sindicato? ¿Cuáles son?', bloque: 'B2' },
-    { pregunta: '¿Cómo registrás los sueldos en Albor?', bloque: 'B6' },
-    { pregunta: '¿Qué pasa cuando hay una incorporación nueva? ¿Cuáles son los primeros pasos?', bloque: 'B4' },
-    { pregunta: '¿Cómo manejás las vacaciones y el aguinaldo en la liquidación?', bloque: 'B4' },
-    { pregunta: '¿Con quién coordinás más seguido para cerrar la liquidación mensual?', bloque: 'B5' }
+  'Administrativo Junior': [
+    { pregunta: '¿Cuáles son tus principales tareas administrativas diarias?', bloque: 'B2' },
+    { pregunta: '¿Qué sistemas usás para tu trabajo?', bloque: 'B6' },
+    { pregunta: '¿Qué tipo de documentos procesás o archivás habitualmente?', bloque: 'B4' },
+    { pregunta: '¿A quién le reportás tu trabajo y cómo?', bloque: 'B5' },
+    { pregunta: '¿Cómo manejás el ingreso y registro de facturas?', bloque: 'B4' },
+    { pregunta: '¿Qué tareas de soporte hacés para otras áreas?', bloque: 'B2' },
+    { pregunta: '¿Cómo organizás tu agenda y prioridades del día?', bloque: 'B4' },
+    { pregunta: '¿Qué información manejás que sea sensible o confidencial?', bloque: 'B3' },
+    { pregunta: '¿Cómo coordinás con Tesorería o Administración cuando necesitás algo?', bloque: 'B5' },
+    { pregunta: '¿Qué te resulta más complejo de tu puesto actualmente?', bloque: 'B3' }
   ],
-  Autorizaciones: [
-    { pregunta: '¿Qué tipos de pagos requieren tu autorización y cuáles no?', bloque: 'B2' },
-    { pregunta: '¿Cuál es el monto límite para autorizar sin consultar a Danilo?', bloque: 'B2' },
-    { pregunta: '¿Cómo te llegan las solicitudes de autorización (mail, sistema, papel)?', bloque: 'B4' },
-    { pregunta: '¿Qué verificás antes de autorizar un pago?', bloque: 'B4' },
-    { pregunta: '¿Cómo confirmás que la factura fue recibida y aprobada por el área solicitante?', bloque: 'B4' },
-    { pregunta: '¿Dónde quedá registrada cada autorización que otorgás?', bloque: 'B6' },
-    { pregunta: '¿Cómo avisás al tesorero que un pago está autorizado?', bloque: 'B5' },
-    { pregunta: '¿Qué hacés si detectás una factura incorrecta o sospechosa?', bloque: 'B4' },
-    { pregunta: '¿Cómo manejás autorizaciones urgentes fuera del proceso normal?', bloque: 'B4' },
-    { pregunta: '¿Con quién coordinás más seguido en tu función de autorización?', bloque: 'B5' }
+  RRHH: [
+    { pregunta: '¿Cuántos empleados tiene la empresa y en cuántas locaciones?', bloque: 'B2' },
+    { pregunta: '¿Qué sistema usás para la gestión de RRHH?', bloque: 'B6' },
+    { pregunta: '¿Qué convenios colectivos aplican al personal?', bloque: 'B3' },
+    { pregunta: '¿Cómo es el proceso de incorporación de un empleado nuevo?', bloque: 'B4' },
+    { pregunta: '¿Quién liquida los sueldos y cómo coordinás con esa persona?', bloque: 'B5' },
+    { pregunta: '¿Qué trámites ante AFIP o el ministerio hacés vos directamente?', bloque: 'B4' },
+    { pregunta: '¿Cómo gestionás las licencias, vacaciones y ausencias?', bloque: 'B4' },
+    { pregunta: '¿Qué reportes de RRHH generás y para quién?', bloque: 'B5' },
+    { pregunta: '¿Qué herramientas digitales usás para comunicarte con el personal?', bloque: 'B6' },
+    { pregunta: '¿Cuál es la gestión de RRHH que más tiempo te demanda?', bloque: 'B2' }
+  ],
+  'Administrativo El Coro': [
+    { pregunta: '¿Cuáles son tus principales tareas administrativas en El Coro?', bloque: 'B2' },
+    { pregunta: '¿Qué sistemas usás para tu trabajo?', bloque: 'B6' },
+    { pregunta: '¿Qué tipo de documentos o registros manejás habitualmente?', bloque: 'B4' },
+    { pregunta: '¿Cómo coordinás con la administración central de la empresa?', bloque: 'B5' },
+    { pregunta: '¿Qué operaciones propias de El Coro administrás?', bloque: 'B2' },
+    { pregunta: '¿Cómo registrás las operaciones en el sistema?', bloque: 'B4' },
+    { pregunta: '¿Con qué frecuencia te comunicás con las otras áreas de administración?', bloque: 'B5' },
+    { pregunta: '¿Qué información reportás a Danilo o a la administración central?', bloque: 'B5' },
+    { pregunta: '¿Qué herramientas o accesos específicos tenés para operar desde El Coro?', bloque: 'B6' },
+    { pregunta: '¿Cuál es la mayor diferencia entre tu trabajo y el del Administrativo Junior?', bloque: 'B3' }
   ]
 };
 

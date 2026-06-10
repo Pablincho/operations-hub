@@ -104,9 +104,12 @@ router.post('/:funcion/generar', async (req, res) => {
     }
 
     // Calculate version for new draft
+    // vigente → increment (1.0 → 1.1); devuelto borrador with real version → preserve it; no prior → Borrador
     const newVersion = current?.estado === 'vigente'
       ? nextVersion(current.version)
-      : 'Borrador';
+      : (current?.version && current.version !== 'Borrador')
+        ? current.version
+        : 'Borrador';
 
     // Archive current borrador or vigente → obsoleto
     if (current) await current.update({ estado: 'obsoleto' });

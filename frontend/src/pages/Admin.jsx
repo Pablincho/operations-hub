@@ -197,7 +197,7 @@ export default function Admin() {
                     <div className="flex flex-wrap gap-1.5 mt-2">
                       {FUNCIONES.map(fn => {
                         const has = (u.funciones || []).includes(fn)
-                        const canEdit = isSuperAdmin || u.rol === 'operativo'
+                        const canEdit = true
                         return (
                           <button
                             key={fn}

@@ -258,15 +258,15 @@ Emails implementados:
 ## 12. Puestos Don Emilio (Piloto)
 
 - N+1: Danilo Marchisone (Gerente General / superadmin)
+- N+2: Melina Vironi (RRHH — también tiene manual y funciones asignadas)
 - N: Agustín Paolini (Tesorería)
-- N: Jorgelina Scantamburlo (Coordinadora Administración y Finanzas)
-- N: Antonella Pacetti (Coordinadora Operaciones Agropecuarias)
+- N: Jorgelina Scantamburlo (Administración y Finanzas)
+- N: Antonella Pacetti (Operaciones Agropecuarias)
 - N: Christian Bianqui (Impositivo)
 - N: Santiago Rudy (Administrativo Junior)
-- N: Melina Vironi (RRHH)
 - N: Matías Barboza (Administrativo El Coro)
 
-Funciones disponibles en el sistema: Tesorería, Impuestos, Sueldos, Autorizaciones.
+Funciones disponibles en el sistema: Tesorería, Administración y Finanzas, Operaciones Agropecuarias, Impositivo, Administrativo Junior, RRHH, Administrativo El Coro.
 
 ---
 

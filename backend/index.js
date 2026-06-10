@@ -45,7 +45,7 @@ app.get('/api/health', (_req, res) => res.json({ success: true, data: 'OK' }));
 app.use((_req, res) => res.status(404).json({ success: false, error: 'Ruta no encontrada' }));
 
 async function initOrganizacion() {
-  const FUNCIONES = ['Tesorería', 'Impuestos', 'Sueldos', 'Autorizaciones'];
+  const FUNCIONES = ['Tesorería', 'Administración y Finanzas', 'Operaciones Agropecuarias', 'Impositivo', 'Administrativo Junior', 'RRHH', 'Administrativo El Coro'];
   const defaultSeedPassword = process.env.DEFAULT_USER_PASSWORD || 'Bienvenido123';
 
   let org = await Organizacion.findOne({ where: { slug: 'donemilio' } });
@@ -77,10 +77,6 @@ async function initOrganizacion() {
       // Still on temp password — sync hash to current DEFAULT_USER_PASSWORD
       await exists.update({ passwordHash });
       console.log(`Usuario ${exists.nombre}: contraseña temporal sincronizada`);
-    } else {
-      // Already changed their password — only force re-change
-      await exists.update({ mustChangePassword: true });
-      console.log(`Usuario ${exists.nombre}: mustChangePassword activado`);
     }
   }
 }

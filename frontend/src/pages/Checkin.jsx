@@ -271,7 +271,7 @@ function ManualView({ funcion, color }) {
                 onClick={() => setShowHistorial(v => !v)}
               >
                 {showHistorial ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                {versionesAnteriores.length} versión{versionesAnteriores.length > 1 ? 'es' : ''} anterior{versionesAnteriores.length > 1 ? 'es' : ''}
+                {versionesAnteriores.length} {versionesAnteriores.length > 1 ? 'versiones' : 'versión'} anterior{versionesAnteriores.length > 1 ? 'es' : ''}
               </button>
               {showHistorial && (
                 <div className="mt-2 flex flex-col gap-1.5 pl-2 border-l-2 border-muted">

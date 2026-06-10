@@ -33,7 +33,7 @@ export default function Layout({ children }) {
         />
         <div className="flex-1 min-w-0">
           <p className="font-bold text-sm leading-tight" style={{ color: '#e8d5a3' }}>
-            Don Emilio – Administración
+            Administración
           </p>
           <p className="text-xs opacity-60" style={{ color: '#e8d5a3' }}>
             {user?.nombre} · {user?.rol}
