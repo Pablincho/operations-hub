@@ -35,11 +35,14 @@ export function AuthProvider({ children }) {
     setUser(null)
   }, [])
 
-  // Refresh user data from DB (funciones may have changed)
+  // Refresh user data from DB + replace stored JWT so funciones are current on next request
   const refreshUser = useCallback(async () => {
     try {
       const res = await api.get('/auth/me')
       const fresh = res.data.data
+      if (res.data.token) {
+        localStorage.setItem('token', res.data.token)
+      }
       setUser(prev => ({ ...prev, ...fresh }))
       return fresh
     } catch {

@@ -203,14 +203,25 @@ router.post('/recover/reset', async (req, res) => {
   }
 });
 
-// GET current user (fresh from DB — used to refresh funciones after admin changes)
+// GET current user (fresh from DB) + reissue JWT so funciones stay current after admin changes
 router.get('/me', verifyJWT, async (req, res) => {
   try {
     const usuario = await Usuario.findByPk(req.user.id, {
-      attributes: { exclude: ['passwordHash'] }
+      attributes: { exclude: ['passwordHash', 'resetTokenHash', 'resetTokenExpiresAt'] }
     });
     if (!usuario) return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
-    res.json({ success: true, data: usuario });
+
+    const payload = {
+      id: usuario.id,
+      email: usuario.email,
+      nombre: usuario.nombre,
+      rol: usuario.rol,
+      funciones: usuario.funciones,
+      organizacionId: usuario.organizacionId
+    };
+    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '8h' });
+
+    res.json({ success: true, data: usuario, token });
   } catch {
     res.status(500).json({ success: false, error: 'Error interno' });
   }
