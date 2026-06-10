@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
+import { diffWords } from 'diff'
 import api from '@/services/api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { FUNC_ICONS, FUNC_COLORS } from '@/lib/utils'
-import { CheckCircle2, ChevronDown, ChevronUp, Loader2, RotateCcw, ClipboardCheck } from 'lucide-react'
+import { CheckCircle2, ChevronDown, ChevronUp, Loader2, RotateCcw, ClipboardCheck, GitCompare, FileText } from 'lucide-react'
 
 const BLOQUE_NOMBRES = {
   B2: 'Funciones y responsabilidades',
@@ -15,8 +16,32 @@ const BLOQUE_NOMBRES = {
   B6: 'Herramientas y sistemas'
 }
 
+function WordDiff({ oldText, newText }) {
+  if (!oldText) {
+    return <p className="text-xs leading-relaxed whitespace-pre-wrap">{newText}</p>
+  }
+  const parts = diffWords(oldText, newText)
+  return (
+    <p className="text-xs leading-relaxed whitespace-pre-wrap">
+      {parts.map((part, i) => (
+        <span
+          key={i}
+          style={{
+            background: part.added ? '#d4edda' : part.removed ? '#f8d7da' : 'transparent',
+            color: part.added ? '#155724' : part.removed ? '#721c24' : 'inherit',
+            textDecoration: part.removed ? 'line-through' : 'none',
+          }}
+        >
+          {part.value}
+        </span>
+      ))}
+    </p>
+  )
+}
+
 function ManualCard({ manual, onApproved, onReturned }) {
   const [expanded, setExpanded] = useState({})
+  const [showDiff, setShowDiff] = useState(true)
   const [showDevolver, setShowDevolver] = useState(false)
   const [observaciones, setObservaciones] = useState('')
   const [approving, setApproving] = useState(false)
@@ -24,6 +49,7 @@ function ManualCard({ manual, onApproved, onReturned }) {
 
   const color = FUNC_COLORS[manual.funcion] || '#1a3a1a'
   const bloques = Object.entries(BLOQUE_NOMBRES).filter(([k]) => manual.contenido?.[k])
+  const hasPrevious = !!manual.contenidoAnterior
 
   async function aprobar() {
     setApproving(true)
@@ -66,6 +92,17 @@ function ManualCard({ manual, onApproved, onReturned }) {
             Enviado: {new Date(manual.updatedAt).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}
           </p>
           <div className="flex gap-2">
+            {hasPrevious && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowDiff(d => !d)}
+                className="gap-1 text-xs h-7"
+              >
+                {showDiff ? <FileText size={12} /> : <GitCompare size={12} />}
+                {showDiff ? 'Ver texto' : 'Ver cambios'}
+              </Button>
+            )}
             <Button
               size="sm"
               onClick={aprobar}
@@ -108,8 +145,11 @@ function ManualCard({ manual, onApproved, onReturned }) {
                 {expanded[key] ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
               </button>
               {expanded[key] && (
-                <div className="px-3 pb-3 pt-1 text-xs leading-relaxed whitespace-pre-wrap border-t bg-muted/10 text-muted-foreground">
-                  {manual.contenido[key]}
+                <div className="px-3 pb-3 pt-1 border-t bg-muted/10 text-muted-foreground">
+                  {hasPrevious && showDiff
+                    ? <WordDiff oldText={manual.contenidoAnterior?.[key] || null} newText={manual.contenido[key]} />
+                    : <p className="text-xs leading-relaxed whitespace-pre-wrap">{manual.contenido[key]}</p>
+                  }
                 </div>
               )}
             </div>

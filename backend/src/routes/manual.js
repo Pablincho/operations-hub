@@ -34,9 +34,18 @@ router.get('/pendientes', requireAdmin, async (req, res) => {
       order: [['updatedAt', 'DESC']]
     });
 
-    const data = manuales.map(m => ({
-      ...m.toJSON(),
-      ocupante: supervisees.find(u => u.id === m.usuarioId)
+    // Fetch the most recent obsoleto version for each pending manual (for diff view)
+    const data = await Promise.all(manuales.map(async m => {
+      const anterior = await Manual.findOne({
+        where: { usuarioId: m.usuarioId, funcion: m.funcion, estado: 'obsoleto' },
+        order: [['createdAt', 'DESC']],
+        attributes: ['id', 'version', 'contenido']
+      });
+      return {
+        ...m.toJSON(),
+        ocupante: supervisees.find(u => u.id === m.usuarioId),
+        contenidoAnterior: anterior?.contenido || null
+      };
     }));
 
     res.json({ success: true, data });
@@ -84,15 +93,7 @@ router.post('/:funcion/generar', async (req, res) => {
       return res.status(403).json({ success: false, error: 'No tenés esa función asignada' });
     }
 
-    const contenido = await generarManual(funcion, req.user.organizacionId, req.user.id, KnowledgeEntry);
-    if (!Object.keys(contenido).length) {
-      return res.status(400).json({
-        success: false,
-        error: 'No hay suficientes respuestas para generar el manual. Completá el check-in primero.'
-      });
-    }
-
-    // Find current active (non-obsoleto) manual to determine next version
+    // Find current active (non-obsoleto) manual to determine next version and for incremental generation
     const current = await Manual.findOne({
       where: { usuarioId: req.user.id, funcion, estado: { [Op.ne]: 'obsoleto' } },
       order: [['createdAt', 'DESC']]
@@ -101,6 +102,33 @@ router.post('/:funcion/generar', async (req, res) => {
     // Block if in review
     if (current?.estado === 'en_revision') {
       return res.status(400).json({ success: false, error: 'El manual está en revisión. Esperá la respuesta del revisor.' });
+    }
+
+    // Block if no new entries since last generation
+    if (current?.generadoEn) {
+      const newCount = await KnowledgeEntry.count({
+        where: {
+          funcion,
+          organizacionId: req.user.organizacionId,
+          usuarioId: req.user.id,
+          categoria: 'checkin',
+          createdAt: { [Op.gt]: current.generadoEn }
+        }
+      });
+      if (newCount === 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'No hay respuestas nuevas desde la última generación. Completá un check-in primero.'
+        });
+      }
+    }
+
+    const contenido = await generarManual(funcion, req.user.organizacionId, req.user.id, KnowledgeEntry, current);
+    if (!Object.keys(contenido).length) {
+      return res.status(400).json({
+        success: false,
+        error: 'No hay suficientes respuestas para generar el manual. Completá el check-in primero.'
+      });
     }
 
     // Calculate version for new draft
