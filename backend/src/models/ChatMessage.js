@@ -18,6 +18,11 @@ export function ChatMessageModel(sequelize) {
     contenido: {
       type: DataTypes.TEXT,
       allowNull: false
+    },
+    feedback: {
+      type: DataTypes.ENUM('up', 'down'),
+      allowNull: true,
+      defaultValue: null
     }
   });
 }

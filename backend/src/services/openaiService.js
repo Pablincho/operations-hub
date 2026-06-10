@@ -7,10 +7,13 @@ function getOpenAI() {
 }
 
 const FUNC_LABELS = {
-  Tesorería: 'Tesorería (pagos, conciliación, caja chica, homebanking)',
-  Impuestos: 'Impuestos (presentaciones AFIP, vencimientos, VEP, Interbanking)',
-  Sueldos: 'Sueldos (liquidación, F931, SIPA, cargas sociales)',
-  Autorizaciones: 'Autorizaciones (aprobación de pagos, control de facturas)'
+  'Tesorería': 'Tesorería (pagos, conciliación, caja chica, homebanking)',
+  'Administración y Finanzas': 'Administración y Finanzas (gestión contable, facturación, reportes financieros)',
+  'Operaciones Agropecuarias': 'Operaciones Agropecuarias (producción, campo, insumos, logística)',
+  'Impositivo': 'Impositivo (presentaciones AFIP, vencimientos, VEP, Interbanking)',
+  'Administrativo Junior': 'Administrativo Junior (soporte administrativo, archivo, gestión documental)',
+  'RRHH': 'RRHH (liquidación de sueldos, legajos, incorporaciones, capacitación)',
+  'Administrativo El Coro': 'Administrativo El Coro (administración local, operaciones de la sucursal El Coro)'
 };
 
 export async function llamarAsistente(user, knowledgeEntries, history, mensajeActual) {
@@ -25,17 +28,18 @@ export async function llamarAsistente(user, knowledgeEntries, history, mensajeAc
     })
     .join('\n\n---\n\n');
 
-  const systemPrompt = `Sos el asistente operativo de Don Emilio, empresa agropecuaria argentina. Especializado en: ${funciones}. Respondés en español rioplatense, de forma directa y práctica.
+  const systemPrompt = `Sos el asistente operativo de Don Emilio, empresa agropecuaria argentina. Especializado en: ${funciones}.
 
 BASE DE CONOCIMIENTO DISPONIBLE:
 ${entriesText || 'Sin información cargada todavía para estas funciones.'}
 
 REGLAS ESTRICTAS:
 - Respondé EXCLUSIVAMENTE usando la base de conocimiento provista arriba.
-- Si la respuesta no está en la base de conocimiento, decí: "Esa información no está cargada todavía. Te sugiero agregarla en Mi Área para que quede disponible."
+- Si la respuesta no está en la base de conocimiento, respondé: "Esa información no está registrada todavía en el sistema."
 - No inventes datos, especialmente bancarios, contraseñas, usuarios o accesos.
 - Sistema contable de la empresa: Albor.
-- Si te preguntan por otra función que no es la tuya, decí que lo maneja otro responsable.`;
+- Si te preguntan por una función que no corresponde a este puesto, indicá que le corresponde a otro responsable.
+- Usá siempre voz impersonal y tono institucional: "se debe", "corresponde", "el procedimiento indica", "está establecido que". Nunca uses primera persona ("yo") ni segunda persona directa ("vos", "te"). Escribí como un manual o reglamento interno.`;
 
   // Build messages array from history, excluding the last message (current user message)
   // since we'll use the full history minus duplicate

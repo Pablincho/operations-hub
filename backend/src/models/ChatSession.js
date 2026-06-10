@@ -10,6 +10,10 @@ export function ChatSessionModel(sequelize) {
     usuarioId: {
       type: DataTypes.UUID,
       allowNull: false
+    },
+    nombre: {
+      type: DataTypes.STRING(100),
+      allowNull: true
     }
   });
 }
