@@ -34,6 +34,7 @@ export async function sendRecoveryEmail(toEmail, code) {
 }
 
 export async function sendManualEnviadoEmail(toEmail, ocupanteNombre, funcion, nota) {
+  const url = `${process.env.FRONTEND_URL}/revisiones`;
   await resend.emails.send({
     from: FROM,
     to: toEmail,
@@ -42,7 +43,9 @@ export async function sendManualEnviadoEmail(toEmail, ocupanteNombre, funcion, n
       <p style="color:#222;font-size:15px;font-weight:600;margin-bottom:8px">Manual de puesto enviado a revisión</p>
       <p style="color:#555"><strong>${ocupanteNombre}</strong> envió el manual de <strong>${funcion}</strong> para tu revisión.</p>
       ${nota ? `<div style="background:#f5f5f0;border-radius:8px;padding:16px;margin:20px 0"><p style="color:#333;font-size:13px;margin:0"><em>"${nota}"</em></p></div>` : ''}
-      <p style="color:#555;margin-top:16px">Ingresá a <strong>REMI → Revisiones</strong> para aprobar o devolver el manual.</p>
+      <div style="text-align:center;margin:28px 0">
+        <a href="${url}" style="background:#1a3a1a;color:#e8d5a3;text-decoration:none;padding:12px 28px;border-radius:8px;font-size:14px;font-weight:600">Ir a Revisiones →</a>
+      </div>
     `)
   });
 }
@@ -73,7 +76,9 @@ export async function sendManualDevueltoEmail(toEmail, funcion, observaciones) {
       <div style="background:#fff8f0;border-radius:8px;padding:16px;margin:20px 0;border-left:4px solid #c07a2d">
         <p style="color:#333;font-size:13px;margin:0">${observaciones}</p>
       </div>
-      <p style="color:#555">Ingresá a <strong>REMI → Check-in</strong> para corregir y reenviar.</p>
+      <div style="text-align:center;margin:28px 0">
+        <a href="${process.env.FRONTEND_URL}/manual" style="background:#1a3a1a;color:#e8d5a3;text-decoration:none;padding:12px 28px;border-radius:8px;font-size:14px;font-weight:600">Ir a Mi Manual →</a>
+      </div>
     `)
   });
 }
