@@ -93,15 +93,31 @@ function ManualCard({ manual, onApproved, onReturned }) {
           </p>
           <div className="flex gap-2">
             {hasPrevious && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setShowDiff(d => !d)}
-                className="gap-1 text-xs h-7"
-              >
-                {showDiff ? <FileText size={12} /> : <GitCompare size={12} />}
-                {showDiff ? 'Ver texto' : 'Ver cambios'}
-              </Button>
+              <div className="flex text-xs rounded-lg border overflow-hidden" style={{ borderColor: '#d1d5db' }}>
+                <button
+                  onClick={() => setShowDiff(true)}
+                  className="flex items-center gap-1 px-2.5 py-1 transition-colors"
+                  style={{
+                    background: showDiff ? color : 'transparent',
+                    color: showDiff ? '#fff' : '#6b7280',
+                    fontWeight: showDiff ? 600 : 400
+                  }}
+                >
+                  <GitCompare size={11} /> Cambios
+                </button>
+                <button
+                  onClick={() => setShowDiff(false)}
+                  className="flex items-center gap-1 px-2.5 py-1 transition-colors border-l"
+                  style={{
+                    borderColor: '#d1d5db',
+                    background: !showDiff ? color : 'transparent',
+                    color: !showDiff ? '#fff' : '#6b7280',
+                    fontWeight: !showDiff ? 600 : 400
+                  }}
+                >
+                  <FileText size={11} /> Texto
+                </button>
+              </div>
             )}
             <Button
               size="sm"

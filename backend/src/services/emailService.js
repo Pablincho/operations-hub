@@ -61,6 +61,9 @@ export async function sendManualAprobadoEmail(toEmail, funcion, aprobadorNombre)
       <div style="background:#f0faf4;border-radius:8px;padding:16px;margin:20px 0;border-left:4px solid #2d7a4f">
         <p style="color:#2d7a4f;font-weight:600;margin:0">Estado: Vigente</p>
       </div>
+      <div style="text-align:center;margin:28px 0">
+        <a href="${process.env.FRONTEND_URL}/manual" style="background:#1a3a1a;color:#e8d5a3;text-decoration:none;padding:12px 28px;border-radius:8px;font-size:14px;font-weight:600">Ver manual aprobado →</a>
+      </div>
     `)
   });
 }

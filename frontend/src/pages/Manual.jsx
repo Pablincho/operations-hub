@@ -551,7 +551,7 @@ export default function MiManual() {
     <div className="max-w-3xl mx-auto p-6">
       <div className="mb-5">
         <h1 className="text-xl font-bold" style={{ color: '#1a3a1a' }}>Mi Manual</h1>
-        <p className="text-sm text-muted-foreground">Documentación de tu puesto</p>
+        <p className="text-sm text-muted-foreground">Acá encontrarás la documentación de tu puesto y lo que tengas pendiente de completar.</p>
       </div>
 
       {/* Function tabs */}

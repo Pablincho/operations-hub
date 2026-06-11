@@ -12,10 +12,10 @@ import {
 const router = Router();
 router.use(verifyJWT);
 
-function nextVersion(v) {
+function nextVersion(v, isMajor = false) {
   if (!v || v === 'Borrador') return '1.0';
   const [major, minor] = v.split('.').map(Number);
-  return `${major}.${minor + 1}`;
+  return isMajor ? `${major + 1}.0` : `${major}.${minor + 1}`;
 }
 
 // GET pending manuals for review (admin/superadmin sees manuals of their supervisees)
@@ -104,21 +104,24 @@ router.post('/:funcion/generar', async (req, res) => {
       return res.status(400).json({ success: false, error: 'El manual está en revisión. Esperá la respuesta del revisor.' });
     }
 
-    // Block if no new entries since last generation
+    // Block if no new or edited entries since last generation
     if (current?.generadoEn) {
-      const newCount = await KnowledgeEntry.count({
+      const changedCount = await KnowledgeEntry.count({
         where: {
           funcion,
           organizacionId: req.user.organizacionId,
           usuarioId: req.user.id,
           categoria: 'checkin',
-          createdAt: { [Op.gt]: current.generadoEn }
+          [Op.or]: [
+            { createdAt: { [Op.gt]: current.generadoEn } },
+            { updatedAt: { [Op.gt]: current.generadoEn } }
+          ]
         }
       });
-      if (newCount === 0) {
+      if (changedCount === 0) {
         return res.status(400).json({
           success: false,
-          error: 'No hay respuestas nuevas desde la última generación. Completá un check-in primero.'
+          error: 'No hay respuestas nuevas o editadas desde la última generación. Completá un check-in o editá una respuesta primero.'
         });
       }
     }
@@ -132,12 +135,18 @@ router.post('/:funcion/generar', async (req, res) => {
     }
 
     // Calculate version for new draft
-    // vigente → increment (1.0 → 1.1); devuelto borrador with real version → preserve it; no prior → Borrador
-    const newVersion = current?.estado === 'vigente'
-      ? nextVersion(current.version)
-      : (current?.version && current.version !== 'Borrador')
+    // vigente → increment (minor if <3 blocks changed, major if ≥3); devuelto borrador → preserve version; no prior → Borrador
+    let newVersion;
+    if (current?.estado === 'vigente') {
+      const changedBlocks = Object.keys(contenido).filter(
+        b => contenido[b] !== current.contenido?.[b]
+      ).length;
+      newVersion = nextVersion(current.version, changedBlocks >= 3);
+    } else {
+      newVersion = (current?.version && current.version !== 'Borrador')
         ? current.version
         : 'Borrador';
+    }
 
     // Archive current borrador or vigente → obsoleto
     if (current) await current.update({ estado: 'obsoleto' });
