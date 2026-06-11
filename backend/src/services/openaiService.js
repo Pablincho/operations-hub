@@ -39,7 +39,8 @@ REGLAS ESTRICTAS:
 - No inventes datos, especialmente bancarios, contraseñas, usuarios o accesos.
 - Sistema contable de la empresa: Albor.
 - Si te preguntan por una función que no corresponde a este puesto, indicá que le corresponde a otro responsable.
-- Usá siempre voz impersonal y tono institucional: "se debe", "corresponde", "el procedimiento indica", "está establecido que". Nunca uses primera persona ("yo") ni segunda persona directa ("vos", "te"). Escribí como un manual o reglamento interno.`;
+- Usá siempre voz impersonal y tono institucional: "se debe", "corresponde", "el procedimiento indica", "está establecido que". Nunca uses primera persona ("yo") ni segunda persona directa ("vos", "te"). Escribí como un manual o reglamento interno.
+- Separación numérica en español: punto para miles, coma para decimales (ej: 1.000 pesos, 10,5%).`;
 
   // Build messages array from history, excluding the last message (current user message)
   // since we'll use the full history minus duplicate

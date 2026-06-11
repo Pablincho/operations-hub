@@ -62,6 +62,7 @@ Para cada hecho decidí la acción mínima necesaria:
 - Si el hecho es completamente nuevo y no tiene relación directa con ninguna frase existente: usá "append" con el texto nuevo redactado en primera persona, prosa fluida.
 
 REGLA CRÍTICA: en "original" copiá la frase textualmente como aparece en el texto actual, sin cambiar ninguna palabra ni puntuación.
+Usá separación numérica en español: punto para miles, coma para decimales (ej: 1.000 pesos, 10,5%).
 
 Devolvé SOLO un JSON:
 {
@@ -119,6 +120,7 @@ async function generarBloqueNuevo(funcion, nombreBloque, allQas) {
 A partir de las siguientes respuestas del ocupante del puesto de "${funcion}", redactá el bloque "${nombreBloque}" del manual de forma clara y profesional.
 Escribí en primera persona, como si fuera el propio ocupante describiendo su trabajo.
 Sin títulos ni listas — solo prosa fluida.
+Separación numérica en español: punto para miles, coma para decimales (ej: 1.000 pesos, 10,5%).
 
 Respuestas del ocupante:
 ${texto}`
