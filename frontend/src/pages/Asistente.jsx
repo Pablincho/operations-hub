@@ -338,7 +338,7 @@ export default function Asistente() {
       </div>
 
       {/* Input */}
-      <form onSubmit={sendMessage} className="flex gap-2 p-4 border-t bg-white">
+      <form onSubmit={sendMessage} className="flex items-stretch gap-2 p-4 border-t bg-white">
         <Textarea
           value={input}
           onChange={e => setInput(e.target.value)}
@@ -347,11 +347,14 @@ export default function Asistente() {
           rows={2}
           className="resize-none flex-1"
         />
-        <Button type="submit" disabled={!input.trim() || loading} size="icon"
-          className="h-auto self-end mb-0.5"
-          style={{ background: '#1a3a1a', color: '#e8d5a3' }}>
-          <Send size={16} />
-        </Button>
+        <button
+          type="submit"
+          disabled={!input.trim() || loading}
+          className="w-14 rounded-xl shrink-0 flex items-center justify-center disabled:opacity-40 transition-opacity"
+          style={{ background: '#1a3a1a', color: '#e8d5a3' }}
+        >
+          <Send size={13} />
+        </button>
       </form>
     </div>
   )

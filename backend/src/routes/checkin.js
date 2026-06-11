@@ -7,10 +7,14 @@ import { generarPreguntas, INITIAL_QUESTIONS } from '../services/checkinService.
 const router = Router();
 router.use(verifyJWT);
 
+function todayBA() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' });
+}
+
 // GET today's check-in sessions + onboarding status per function
 router.get('/hoy', async (req, res) => {
   try {
-    const today = new Date().toISOString().split('T')[0];
+    const today = todayBA();
     const [todaySessions, allCompleted, entryRows] = await Promise.all([
       CheckinSession.findAll({ where: { usuarioId: req.user.id, fecha: today } }),
       CheckinSession.findAll({ where: { usuarioId: req.user.id, completado: true } }),
@@ -59,7 +63,7 @@ router.post('/iniciar', async (req, res) => {
       return res.status(403).json({ success: false, error: 'No tenés esa función asignada' });
     }
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = todayBA();
     const existing = await CheckinSession.findOne({
       where: { usuarioId: req.user.id, funcion, fecha: today }
     });
