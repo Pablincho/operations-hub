@@ -5,6 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { verifyJWT, requireAdmin } from '../auth.js';
 import { Usuario } from '../models/index.js';
+import { sendBienvenidaEmail } from '../services/emailService.js';
 
 const router = Router();
 router.use(verifyJWT);
@@ -119,6 +120,13 @@ router.post('/', requireAdmin, async (req, res) => {
     });
 
     const { passwordHash: _, ...data } = usuario.toJSON();
+
+    try {
+      await sendBienvenidaEmail(normalizedEmail, nombre, tempPassword);
+    } catch (emailErr) {
+      console.error('Error enviando email de bienvenida:', emailErr.message);
+    }
+
     res.status(201).json({
       success: true,
       data,

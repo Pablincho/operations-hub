@@ -16,6 +16,29 @@ function baseHtml(content) {
   `;
 }
 
+export async function sendBienvenidaEmail(toEmail, nombre, tempPassword) {
+  const url = `${process.env.FRONTEND_URL}/login`;
+  await resend.emails.send({
+    from: FROM,
+    to: toEmail,
+    subject: 'Bienvenido a REMI — Don Emilio',
+    html: baseHtml(`
+      <p style="color:#222;font-size:15px;font-weight:600;margin-bottom:8px">¡Bienvenido a REMI, ${nombre}!</p>
+      <p style="color:#555">Se creó tu acceso al sistema de Registro de Experiencia y Memoria Institucional de Don Emilio.</p>
+      <div style="background:#f5f5f0;border-radius:8px;padding:20px;margin:24px 0">
+        <p style="color:#333;font-size:13px;margin:0 0 6px 0">Tus credenciales de acceso:</p>
+        <p style="color:#333;font-size:13px;margin:0"><strong>Email:</strong> ${toEmail}</p>
+        <p style="color:#333;font-size:13px;margin:4px 0 0 0"><strong>Contraseña temporal:</strong> ${tempPassword}</p>
+      </div>
+      <p style="color:#555;font-size:13px">Al ingresar por primera vez deberás cambiar tu contraseña.</p>
+      <div style="text-align:center;margin:28px 0">
+        <a href="${url}" style="background:#1a3a1a;color:#e8d5a3;text-decoration:none;padding:12px 28px;border-radius:8px;font-size:14px;font-weight:600">Ingresar a REMI →</a>
+      </div>
+      <p style="color:#999;font-size:11px;margin-top:8px">Si no esperabas este mensaje, ignoralo.</p>
+    `)
+  });
+}
+
 export async function sendRecoveryEmail(toEmail, code) {
   await resend.emails.send({
     from: FROM,
