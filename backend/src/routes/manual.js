@@ -208,9 +208,20 @@ router.post('/:funcion/enviar', async (req, res) => {
     // Assign version 1.0 on first send; keep existing version on subsequent sends
     const version = manual.version === 'Borrador' ? '1.0' : manual.version;
 
+    // Compare against the most recent obsoleto version to auto-approve unchanged blocks
+    const anterior = await Manual.findOne({
+      where: { usuarioId: req.user.id, funcion, estado: 'obsoleto' },
+      order: [['createdAt', 'DESC']],
+      attributes: ['contenido']
+    });
+    const contenidoAnterior = anterior?.contenido || null;
+
     const bloquesEstado = {};
     for (const bloque of Object.keys(manual.contenido || {})) {
-      if (manual.contenido[bloque]) bloquesEstado[bloque] = { estado: 'en_revision', observacion: null };
+      if (!manual.contenido[bloque]) continue;
+      const prevTexto = contenidoAnterior?.[bloque];
+      const modificado = !prevTexto || prevTexto.trim() !== manual.contenido[bloque].trim();
+      bloquesEstado[bloque] = { estado: modificado ? 'en_revision' : 'aprobado', observacion: null };
     }
 
     await manual.update({

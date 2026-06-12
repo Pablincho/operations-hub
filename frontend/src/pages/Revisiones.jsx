@@ -151,6 +151,10 @@ function ManualCard({ manual: initialManual, onResolved }) {
   const hasPrevious = !!manual.contenidoAnterior
   const bloquesEstado = manual.bloquesEstado || {}
 
+  // Solo mostrar bloques que requieren revisión (en_revision o devuelto); los no modificados ya llegaron aprobados
+  const bloquesRevisar = bloques.filter(([k]) => bloquesEstado[k]?.estado !== 'aprobado' || !hasPrevious)
+  const autoAprobados = bloques.length - bloquesRevisar.length
+
   const aprobados = bloques.filter(([k]) => bloquesEstado[k]?.estado === 'aprobado').length
   const devueltos = bloques.filter(([k]) => bloquesEstado[k]?.estado === 'devuelto').length
   const pendientes = bloques.length - aprobados - devueltos
@@ -210,7 +214,9 @@ function ManualCard({ manual: initialManual, onResolved }) {
               Enviado: {new Date(manual.updatedAt).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}
             </p>
             <span className="text-xs px-2 py-0.5 rounded-full bg-muted font-medium">
-              {aprobados}/{bloques.length} aprobados
+              {bloquesRevisar.length === 0
+                ? 'Todos los bloques aprobados'
+                : `${bloquesRevisar.length - pendientes}/${bloquesRevisar.length} revisados`}
               {devueltos > 0 && <span className="text-orange-600"> · {devueltos} devueltos</span>}
             </span>
           </div>
@@ -249,9 +255,15 @@ function ManualCard({ manual: initialManual, onResolved }) {
           </div>
         )}
 
-        {/* Bloques con revisión individual */}
+        {/* Bloques con revisión individual — solo los modificados */}
+        {autoAprobados > 0 && (
+          <p className="text-xs text-muted-foreground flex items-center gap-1 mb-1">
+            <CheckCircle2 size={11} className="text-green-500" />
+            {autoAprobados} bloque{autoAprobados > 1 ? 's' : ''} sin cambios, aprobado{autoAprobados > 1 ? 's' : ''} automáticamente
+          </p>
+        )}
         <div className="flex flex-col gap-1.5">
-          {bloques.map(([key, nombre]) => (
+          {bloquesRevisar.map(([key, nombre]) => (
             <BloqueReview
               key={key}
               bloqueKey={key}
