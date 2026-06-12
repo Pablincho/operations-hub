@@ -91,6 +91,38 @@ export async function sendManualAprobadoEmail(toEmail, funcion, aprobadorNombre)
   });
 }
 
+export async function sendRecordatorioEmail(toEmail, nombre, funcion, dias) {
+  await resend.emails.send({
+    from: FROM,
+    to: toEmail,
+    subject: `Recordatorio: continuá documentando tu puesto de ${funcion}`,
+    html: baseHtml(`
+      <p style="color:#222;font-size:15px;font-weight:600;margin-bottom:8px">Tenés documentación pendiente</p>
+      <p style="color:#555">Hace <strong>${dias} día${dias !== 1 ? 's' : ''}</strong> que no registrás actividad en la documentación de <strong>${funcion}</strong>.</p>
+      <p style="color:#555;font-size:13px">Cada sesión son solo 3 preguntas y demanda unos minutos. Tu conocimiento es clave para la organización.</p>
+      <div style="text-align:center;margin:28px 0">
+        <a href="${process.env.FRONTEND_URL}/manual" style="background:#1a3a1a;color:#e8d5a3;text-decoration:none;padding:12px 28px;border-radius:8px;font-size:14px;font-weight:600">Continuar documentación →</a>
+      </div>
+    `)
+  });
+}
+
+export async function sendRecordatorioSupervisorEmail(toEmail, supervisorNombre, ocupanteNombre, funcion, dias) {
+  await resend.emails.send({
+    from: FROM,
+    to: toEmail,
+    subject: `El manual de ${funcion} lleva ${dias} días sin actividad`,
+    html: baseHtml(`
+      <p style="color:#222;font-size:15px;font-weight:600;margin-bottom:8px">Manual sin actividad</p>
+      <p style="color:#555"><strong>${ocupanteNombre}</strong> lleva <strong>${dias} días</strong> sin registrar actividad en la documentación de <strong>${funcion}</strong>.</p>
+      <p style="color:#555;font-size:13px">Podés recordarle directamente o revisar el avance desde el panel de administración.</p>
+      <div style="text-align:center;margin:28px 0">
+        <a href="${process.env.FRONTEND_URL}/admin" style="background:#1a3a1a;color:#e8d5a3;text-decoration:none;padding:12px 28px;border-radius:8px;font-size:14px;font-weight:600">Ver panel de administración →</a>
+      </div>
+    `)
+  });
+}
+
 export async function sendManualDevueltoEmail(toEmail, funcion, observaciones) {
   await resend.emails.send({
     from: FROM,

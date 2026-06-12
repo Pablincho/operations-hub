@@ -17,14 +17,32 @@ const LOGO_URL = 'https://res.cloudinary.com/dmigevwah/image/upload/f_png/v17774
 
 const pdfStyles = StyleSheet.create({
   page: { padding: 48, paddingBottom: 72, fontFamily: 'Helvetica', fontSize: 10, color: '#222' },
-  header: { marginBottom: 20, borderBottom: '1pt solid #1a3a1a', paddingBottom: 14 },
+  header: { marginBottom: 16, borderBottom: '1pt solid #1a3a1a', paddingBottom: 14 },
   headerRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 },
   logo: { height: 54, width: 180, objectFit: 'contain' },
-  headerMeta: { textAlign: 'right', fontSize: 9, color: '#555', lineHeight: 1.5 },
   title: { fontSize: 17, fontFamily: 'Helvetica-Bold', color: '#1a3a1a' },
+  // B0 — Control documental
+  b0Box: { border: '0.5pt solid #ccc', borderRadius: 4, padding: 10, marginBottom: 16, backgroundColor: '#f9faf9' },
+  b0Title: { fontSize: 8, fontFamily: 'Helvetica-Bold', color: '#888', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 },
+  b0Grid: { flexDirection: 'row', gap: 8, marginBottom: 4 },
+  b0Cell: { flex: 1 },
+  b0Label: { fontSize: 7.5, color: '#888', marginBottom: 1 },
+  b0Value: { fontSize: 9, fontFamily: 'Helvetica-Bold', color: '#333' },
+  // B1 — Identificación
+  b1Box: { marginBottom: 16 },
+  b1Row: { flexDirection: 'row', marginBottom: 3 },
+  b1Label: { fontSize: 9, color: '#888', width: 110 },
+  b1Value: { fontSize: 9, fontFamily: 'Helvetica-Bold', color: '#333', flex: 1 },
+  // Bloques B2-B6
   bloque: { marginBottom: 16 },
-  bloqueTitle: { fontSize: 13, fontFamily: 'Helvetica-Bold', color: '#1a3a1a', marginBottom: 12 },
-  bloqueText: { lineHeight: 0.95, textAlign: 'justify', color: '#333' },
+  bloqueTitle: { fontSize: 13, fontFamily: 'Helvetica-Bold', color: '#1a3a1a', marginBottom: 8 },
+  bloqueText: { lineHeight: 1.4, textAlign: 'justify', color: '#333' },
+  // B9 — Historial
+  tableHeader: { flexDirection: 'row', backgroundColor: '#1a3a1a', borderRadius: 2, paddingVertical: 5, paddingHorizontal: 8, marginBottom: 2 },
+  tableHeaderCell: { fontSize: 8, fontFamily: 'Helvetica-Bold', color: '#e8d5a3' },
+  tableRow: { flexDirection: 'row', paddingVertical: 4, paddingHorizontal: 8, borderBottom: '0.5pt solid #eee' },
+  tableRowAlt: { backgroundColor: '#f5f7f5' },
+  tableCell: { fontSize: 9, color: '#444' },
   footer: { position: 'absolute', bottom: 28, left: 48, right: 48, fontSize: 8, color: '#999', borderTop: '0.5pt solid #ddd', paddingTop: 6, flexDirection: 'row', justifyContent: 'space-between' }
 })
 
@@ -43,33 +61,124 @@ const ESTADO_LABELS = {
   obsoleto: { label: 'Obsoleto', bg: 'bg-gray-100', text: 'text-gray-500' }
 }
 
+const ESTADO_PDF = {
+  borrador: 'Borrador', en_revision: 'En revisión', vigente: 'Vigente', obsoleto: 'Obsoleto'
+}
+
+function fmtDate(d) {
+  if (!d) return '—'
+  return new Date(d).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })
+}
+
 // ─── PDF ──────────────────────────────────────────────────────────────────────
-function ManualPDF({ funcion, contenido, generadoEn, version = 'Borrador' }) {
+function ManualPDF({ funcion, manual, historial = [] }) {
+  const {
+    contenido = {}, generadoEn, version = 'Borrador', estado = 'borrador',
+    aprobadoEn, aprobadoPorNombre, ocupanteNombre
+  } = manual
+
   const bloques = Object.entries(BLOQUE_NOMBRES)
     .filter(([key]) => contenido[key])
     .map(([key, nombre]) => ({ key, nombre, texto: contenido[key] }))
-  const fecha = generadoEn
-    ? new Date(generadoEn).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })
-    : '—'
+
   return (
     <Document>
       <Page size="A4" style={pdfStyles.page}>
+        {/* Header */}
         <View style={pdfStyles.header}>
           <View style={pdfStyles.headerRow}>
             <Image src={LOGO_URL} style={pdfStyles.logo} />
-            <View style={pdfStyles.headerMeta}>
-              <Text>Versión: {version}</Text>
-              <Text>Generado: {fecha}</Text>
-            </View>
           </View>
           <Text style={pdfStyles.title}>Manual de Puesto: {funcion}</Text>
         </View>
+
+        {/* B0 — Control documental */}
+        <View style={pdfStyles.b0Box}>
+          <Text style={pdfStyles.b0Title}>Control Documental</Text>
+          <View style={pdfStyles.b0Grid}>
+            <View style={pdfStyles.b0Cell}>
+              <Text style={pdfStyles.b0Label}>Versión</Text>
+              <Text style={pdfStyles.b0Value}>{version}</Text>
+            </View>
+            <View style={pdfStyles.b0Cell}>
+              <Text style={pdfStyles.b0Label}>Estado</Text>
+              <Text style={pdfStyles.b0Value}>{ESTADO_PDF[estado] || estado}</Text>
+            </View>
+            <View style={pdfStyles.b0Cell}>
+              <Text style={pdfStyles.b0Label}>Última generación</Text>
+              <Text style={pdfStyles.b0Value}>{fmtDate(generadoEn)}</Text>
+            </View>
+            {aprobadoEn && (
+              <View style={pdfStyles.b0Cell}>
+                <Text style={pdfStyles.b0Label}>Fecha de aprobación</Text>
+                <Text style={pdfStyles.b0Value}>{fmtDate(aprobadoEn)}</Text>
+              </View>
+            )}
+          </View>
+          <View style={pdfStyles.b0Grid}>
+            {ocupanteNombre && (
+              <View style={pdfStyles.b0Cell}>
+                <Text style={pdfStyles.b0Label}>Elaborado por</Text>
+                <Text style={pdfStyles.b0Value}>{ocupanteNombre}</Text>
+              </View>
+            )}
+            {aprobadoPorNombre && (
+              <View style={pdfStyles.b0Cell}>
+                <Text style={pdfStyles.b0Label}>Aprobado por</Text>
+                <Text style={pdfStyles.b0Value}>{aprobadoPorNombre}</Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* B1 — Identificación del puesto */}
+        <View style={pdfStyles.bloque}>
+          <Text style={pdfStyles.bloqueTitle}>Identificación del puesto</Text>
+          <View style={pdfStyles.b1Box}>
+            <View style={pdfStyles.b1Row}>
+              <Text style={pdfStyles.b1Label}>Nombre del puesto:</Text>
+              <Text style={pdfStyles.b1Value}>{funcion}</Text>
+            </View>
+            <View style={pdfStyles.b1Row}>
+              <Text style={pdfStyles.b1Label}>Organización:</Text>
+              <Text style={pdfStyles.b1Value}>Don Emilio</Text>
+            </View>
+            {ocupanteNombre && (
+              <View style={pdfStyles.b1Row}>
+                <Text style={pdfStyles.b1Label}>Ocupante:</Text>
+                <Text style={pdfStyles.b1Value}>{ocupanteNombre}</Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* B2–B6 */}
         {bloques.map(({ key, nombre, texto }) => (
           <View key={key} style={pdfStyles.bloque}>
             <Text style={pdfStyles.bloqueTitle}>{nombre}</Text>
             <Text style={pdfStyles.bloqueText}>{texto}</Text>
           </View>
         ))}
+
+        {/* B9 — Historial de versiones */}
+        {historial.length > 0 && (
+          <View style={pdfStyles.bloque}>
+            <Text style={pdfStyles.bloqueTitle}>Historial de versiones</Text>
+            <View style={pdfStyles.tableHeader}>
+              <Text style={[pdfStyles.tableHeaderCell, { flex: 1 }]}>Versión</Text>
+              <Text style={[pdfStyles.tableHeaderCell, { flex: 2.5 }]}>Fecha</Text>
+              <Text style={[pdfStyles.tableHeaderCell, { flex: 1.5 }]}>Estado</Text>
+            </View>
+            {historial.map((h, i) => (
+              <View key={h.id} style={[pdfStyles.tableRow, i % 2 !== 0 && pdfStyles.tableRowAlt]}>
+                <Text style={[pdfStyles.tableCell, { flex: 1 }]}>{h.version}</Text>
+                <Text style={[pdfStyles.tableCell, { flex: 2.5 }]}>{fmtDate(h.generadoEn || h.createdAt)}</Text>
+                <Text style={[pdfStyles.tableCell, { flex: 1.5 }]}>{ESTADO_PDF[h.estado] || h.estado}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
         <View style={pdfStyles.footer} fixed>
           <Text>Registro de Experiencia y Memoria Institucional (REMI) · Don Emilio</Text>
           <Text render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
@@ -257,7 +366,7 @@ function ManualSection({ funcion, color }) {
     setExporting(true)
     try {
       const blob = await pdf(
-        <ManualPDF funcion={funcion} contenido={manual.contenido} generadoEn={manual.generadoEn} version={manual.version} />
+        <ManualPDF funcion={funcion} manual={manual} historial={historial} />
       ).toBlob()
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')

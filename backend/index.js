@@ -8,6 +8,7 @@ import knowledgeRoutes from './src/routes/knowledge.js';
 import checkinRoutes from './src/routes/checkin.js';
 import chatRoutes from './src/routes/chat.js';
 import manualRoutes from './src/routes/manual.js';
+import { initScheduler } from './src/scheduler.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -60,6 +61,8 @@ async function start() {
     console.log('Modelos sincronizados');
 
     await initOrganizacion();
+
+    initScheduler();
 
     app.listen(PORT, () => console.log(`Servidor en puerto ${PORT}`));
   } catch (err) {

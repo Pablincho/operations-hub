@@ -62,7 +62,15 @@ router.get('/:funcion', async (req, res) => {
       where: { usuarioId: req.user.id, funcion, estado: { [Op.ne]: 'obsoleto' } },
       order: [['createdAt', 'DESC']]
     });
-    res.json({ success: true, data: manual || null });
+    if (!manual) return res.json({ success: true, data: null });
+
+    const data = manual.toJSON();
+    data.ocupanteNombre = req.user.nombre;
+    if (manual.aprobadoPor) {
+      const aprobador = await Usuario.findByPk(manual.aprobadoPor, { attributes: ['nombre'] });
+      data.aprobadoPorNombre = aprobador?.nombre || null;
+    }
+    res.json({ success: true, data });
   } catch {
     res.status(500).json({ success: false, error: 'Error interno' });
   }
@@ -75,7 +83,7 @@ router.get('/:funcion/historial', async (req, res) => {
     const historial = await Manual.findAll({
       where: { usuarioId: req.user.id, funcion },
       order: [['createdAt', 'DESC']],
-      attributes: ['id', 'version', 'estado', 'generadoEn', 'createdAt']
+      attributes: ['id', 'version', 'estado', 'generadoEn', 'aprobadoEn', 'createdAt']
     });
     res.json({ success: true, data: historial });
   } catch {
