@@ -163,21 +163,27 @@ router.post('/mensaje', async (req, res) => {
       : [];
 
     let fallbackEntries = [];
+    let sensibleEntries = [];
     if (fnsParaEntries.length > 0) {
-      fallbackEntries = await KnowledgeEntry.findAll({
+      const todasEntries = await KnowledgeEntry.findAll({
         where: { usuarioId: req.user.id, funcion: { [Op.in]: fnsParaEntries }, categoria: 'checkin' }
+      });
+      fallbackEntries = todasEntries.filter(e => !e.esSensible);
+      sensibleEntries = todasEntries.filter(e => e.esSensible);
+    }
+
+    const { reply, usedSensitive } = await llamarAsistente(req.user, manuales, fallbackEntries, sensibleEntries, history, mensaje.trim());
+
+    let assistantMsg = null;
+    if (!usedSensitive) {
+      assistantMsg = await ChatMessage.create({
+        chatSessionId: session.id,
+        rol: 'assistant',
+        contenido: reply
       });
     }
 
-    const reply = await llamarAsistente(req.user, manuales, fallbackEntries, history, mensaje.trim());
-
-    const assistantMsg = await ChatMessage.create({
-      chatSessionId: session.id,
-      rol: 'assistant',
-      contenido: reply
-    });
-
-    res.json({ success: true, data: { sessionId: session.id, mensaje: assistantMsg } });
+    res.json({ success: true, data: { sessionId: session.id, mensaje: assistantMsg, reply, efimero: usedSensitive } });
   } catch {
     res.status(500).json({ success: false, error: 'Error interno' });
   }

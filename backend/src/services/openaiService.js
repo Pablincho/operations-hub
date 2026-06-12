@@ -24,7 +24,7 @@ const BLOQUE_NOMBRES = {
   B6: 'Herramientas y sistemas'
 };
 
-export async function llamarAsistente(user, manuales, fallbackEntries, history, mensajeActual) {
+export async function llamarAsistente(user, manuales, fallbackEntries, sensibleEntries, history, mensajeActual) {
   const funciones = user.funciones?.length
     ? user.funciones.map(f => FUNC_LABELS[f] || f).join(', ')
     : 'consultas generales';
@@ -44,7 +44,15 @@ export async function llamarAsistente(user, manuales, fallbackEntries, history, 
       fallbackEntries.map(e => `[${e.funcion}] ${e.titulo}:\n${e.contenido}`).join('\n\n')
     : '';
 
-  const contexto = (manualesText + fallbackText) || 'Sin información cargada todavía para estas funciones.';
+  // Sensitive entries: included in context but response won't be persisted
+  const sensibleText = sensibleEntries.length
+    ? '\n\n--- Información de acceso restringido (no citar textualmente) ---\n\n' +
+      sensibleEntries.map(e => `[${e.funcion}] ${e.titulo}:\n${e.contenido}`).join('\n\n')
+    : '';
+
+  const usedSensitive = sensibleEntries.length > 0;
+
+  const contexto = (manualesText + fallbackText + sensibleText) || 'Sin información cargada todavía para estas funciones.';
 
   const systemPrompt = `Sos el asistente operativo de Don Emilio, empresa agropecuaria argentina. Especializado en: ${funciones}.
 
@@ -75,7 +83,7 @@ REGLAS ESTRICTAS:
     temperature: 0.3
   });
 
-  return response.choices[0].message.content;
+  return { reply: response.choices[0].message.content, usedSensitive };
 }
 
 export async function generarPreguntasIA(funcion, prevAnswers, bloqueObjetivo = 'B4') {

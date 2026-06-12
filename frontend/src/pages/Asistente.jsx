@@ -127,6 +127,7 @@ function MessageBubble({ msg, onFeedback }) {
   const [localFeedback, setLocalFeedback] = useState(msg.feedback || null)
   const isAssistant = msg.rol === 'assistant'
   const isNoInfo = isAssistant && msg.contenido?.toLowerCase().includes(NO_INFO_PHRASE)
+  const isEfimero = isAssistant && msg.efimero
 
   async function handleFeedback(value) {
     const next = localFeedback === value ? null : value
@@ -162,17 +163,24 @@ function MessageBubble({ msg, onFeedback }) {
           )}
           {msg.contenido}
         </div>
-        {/* Feedback buttons */}
-        <div className={`flex gap-1 pl-1 transition-opacity ${hovering || localFeedback ? 'opacity-100' : 'opacity-0'}`}>
-          <button onClick={() => handleFeedback('up')}
-            className={`p-1 rounded transition-colors ${localFeedback === 'up' ? 'text-green-600' : 'text-muted-foreground hover:text-green-600'}`}>
-            <ThumbsUp size={12} />
-          </button>
-          <button onClick={() => handleFeedback('down')}
-            className={`p-1 rounded transition-colors ${localFeedback === 'down' ? 'text-red-500' : 'text-muted-foreground hover:text-red-500'}`}>
-            <ThumbsDown size={12} />
-          </button>
-        </div>
+        {isEfimero && (
+          <span className="text-xs text-muted-foreground flex items-center gap-1 pl-1">
+            ⚡ Respuesta efímera — no queda guardada
+          </span>
+        )}
+        {/* Feedback buttons — solo en mensajes persistidos */}
+        {!isEfimero && (
+          <div className={`flex gap-1 pl-1 transition-opacity ${hovering || localFeedback ? 'opacity-100' : 'opacity-0'}`}>
+            <button onClick={() => handleFeedback('up')}
+              className={`p-1 rounded transition-colors ${localFeedback === 'up' ? 'text-green-600' : 'text-muted-foreground hover:text-green-600'}`}>
+              <ThumbsUp size={12} />
+            </button>
+            <button onClick={() => handleFeedback('down')}
+              className={`p-1 rounded transition-colors ${localFeedback === 'down' ? 'text-red-500' : 'text-muted-foreground hover:text-red-500'}`}>
+              <ThumbsDown size={12} />
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -254,7 +262,12 @@ export default function Asistente() {
     setLoading(true)
     try {
       const res = await api.post('/chat/mensaje', { mensaje: texto, sessionId })
-      setMessages(prev => [...prev, { ...res.data.data.mensaje }])
+      const { mensaje, reply, efimero } = res.data.data
+      if (efimero) {
+        setMessages(prev => [...prev, { rol: 'assistant', contenido: reply, efimero: true }])
+      } else {
+        setMessages(prev => [...prev, { ...mensaje }])
+      }
     } catch {
       setMessages(prev => [...prev, { rol: 'assistant', contenido: 'Ocurrió un error. Intentá de nuevo.' }])
     } finally {

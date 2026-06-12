@@ -1,7 +1,8 @@
 import { DataTypes } from 'sequelize';
+import { encrypt, decrypt, isEncrypted } from '../utils/crypto.js';
 
 export function KnowledgeEntryModel(sequelize) {
-  return sequelize.define('KnowledgeEntry', {
+  const KnowledgeEntry = sequelize.define('KnowledgeEntry', {
     id: {
       type: DataTypes.UUID,
       defaultValue: DataTypes.UUIDV4,
@@ -40,4 +41,27 @@ export function KnowledgeEntryModel(sequelize) {
       allowNull: false
     }
   });
+
+  KnowledgeEntry.addHook('beforeCreate', (inst) => {
+    if (inst.esSensible && inst.contenido && !isEncrypted(inst.contenido)) {
+      inst.contenido = encrypt(inst.contenido)
+    }
+  });
+
+  KnowledgeEntry.addHook('beforeUpdate', (inst) => {
+    if (inst.esSensible && inst.contenido && !isEncrypted(inst.contenido)) {
+      inst.contenido = encrypt(inst.contenido)
+    }
+  });
+
+  KnowledgeEntry.addHook('afterFind', (result) => {
+    const items = Array.isArray(result) ? result : result ? [result] : []
+    for (const item of items) {
+      if (item.esSensible && item.contenido && isEncrypted(item.contenido)) {
+        item.contenido = decrypt(item.contenido)
+      }
+    }
+  });
+
+  return KnowledgeEntry;
 }
