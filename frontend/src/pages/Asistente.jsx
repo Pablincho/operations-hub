@@ -277,14 +277,14 @@ export default function Asistente() {
         <div className="flex items-center gap-2 shrink-0">
           <FuncionesPills funciones={funciones} />
           {messages.length > 0 && (
-            <Button variant="ghost" size="sm"
+            <Button variant="ghost" size="sm" title="Descargar conversación"
               onClick={() => exportConversation(messages, sessionName)}
-              className="gap-1.5 text-xs text-muted-foreground">
+              className="gap-1.5 text-xs" style={{ color: '#1a3a1a' }}>
               <Download size={14} />
             </Button>
           )}
           <div className="relative">
-            <Button variant="ghost" size="sm" onClick={() => setShowHistorial(v => !v)} className="gap-1.5 text-xs">
+            <Button variant="ghost" size="sm" title="Conversaciones anteriores" onClick={() => setShowHistorial(v => !v)} className="gap-1.5 text-xs" style={{ color: '#1a3a1a' }}>
               <History size={14} />
             </Button>
             {showHistorial && (
@@ -295,7 +295,7 @@ export default function Asistente() {
               />
             )}
           </div>
-          <Button variant="ghost" size="sm" onClick={newChat} className="gap-1.5 text-xs">
+          <Button variant="ghost" size="sm" title="Nueva conversación" onClick={newChat} className="gap-1.5 text-xs" style={{ color: '#1a3a1a' }}>
             <PlusCircle size={14} />
             Nueva
           </Button>

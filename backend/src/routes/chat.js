@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { Op } from 'sequelize';
 import { verifyJWT } from '../auth.js';
-import { ChatSession, ChatMessage, KnowledgeEntry } from '../models/index.js';
+import { ChatSession, ChatMessage, KnowledgeEntry, Manual } from '../models/index.js';
 import { llamarAsistente } from '../services/openaiService.js';
 
 const router = Router();
@@ -145,23 +145,31 @@ router.post('/mensaje', async (req, res) => {
       limit: 20
     });
 
-    // Build knowledge base context filtered by role
-    const where = { organizacionId: req.user.organizacionId };
+    // Fetch vigente manuals as primary context
+    const isOperativo = req.user.rol === 'operativo';
+    const manualesWhere = isOperativo
+      ? { usuarioId: req.user.id, estado: 'vigente' }
+      : { organizacionId: req.user.organizacionId, estado: 'vigente' };
 
-    if (req.user.rol === 'superadmin') {
-      // sees all entries including sensitive
-    } else if (req.user.rol === 'admin') {
-      where.esSensible = false;
-    } else {
-      // operativo: only their functions
-      const fns = req.user.funciones || [];
-      where.funcion = fns.length > 0 ? { [Op.in]: fns } : { [Op.in]: ['__none__'] };
-      // sensitive entries are included since they're filtered to their functions
+    const manuales = await Manual.findAll({
+      where: manualesWhere,
+      attributes: ['funcion', 'version', 'contenido']
+    });
+
+    // Fallback: for functions with no vigente manual, use raw KnowledgeEntries
+    const funcionesConManual = new Set(manuales.map(m => m.funcion));
+    const fnsParaEntries = isOperativo
+      ? (req.user.funciones || []).filter(f => !funcionesConManual.has(f))
+      : [];
+
+    let fallbackEntries = [];
+    if (fnsParaEntries.length > 0) {
+      fallbackEntries = await KnowledgeEntry.findAll({
+        where: { usuarioId: req.user.id, funcion: { [Op.in]: fnsParaEntries }, categoria: 'checkin' }
+      });
     }
 
-    const knowledgeEntries = await KnowledgeEntry.findAll({ where });
-
-    const reply = await llamarAsistente(req.user, knowledgeEntries, history, mensaje.trim());
+    const reply = await llamarAsistente(req.user, manuales, fallbackEntries, history, mensaje.trim());
 
     const assistantMsg = await ChatMessage.create({
       chatSessionId: session.id,

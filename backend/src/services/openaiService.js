@@ -16,22 +16,40 @@ const FUNC_LABELS = {
   'Administrativo El Coro': 'Administrativo El Coro (administración local, operaciones de la sucursal El Coro)'
 };
 
-export async function llamarAsistente(user, knowledgeEntries, history, mensajeActual) {
+const BLOQUE_NOMBRES = {
+  B2: 'Funciones y responsabilidades',
+  B3: 'Perfil del puesto',
+  B4: 'Procesos y procedimientos',
+  B5: 'Relaciones e interfaces',
+  B6: 'Herramientas y sistemas'
+};
+
+export async function llamarAsistente(user, manuales, fallbackEntries, history, mensajeActual) {
   const funciones = user.funciones?.length
     ? user.funciones.map(f => FUNC_LABELS[f] || f).join(', ')
     : 'consultas generales';
 
-  const entriesText = knowledgeEntries
-    .map(e => {
-      const sensibleTag = e.esSensible ? ' [ACCESO RESTRINGIDO]' : '';
-      return `[${e.funcion}${sensibleTag}] ${e.titulo}:\n${e.contenido}`;
-    })
-    .join('\n\n---\n\n');
+  // Format vigente manuals as structured context
+  const manualesText = manuales.map(m => {
+    const bloques = Object.entries(BLOQUE_NOMBRES)
+      .filter(([k]) => m.contenido?.[k])
+      .map(([k, nombre]) => `${nombre}:\n${m.contenido[k]}`)
+      .join('\n\n');
+    return `=== Manual de ${m.funcion} (v${m.version}) ===\n${bloques}`;
+  }).join('\n\n---\n\n');
+
+  // Fallback raw entries for functions without a vigente manual
+  const fallbackText = fallbackEntries.length
+    ? '\n\n--- Respuestas en proceso (sin manual aprobado aún) ---\n\n' +
+      fallbackEntries.map(e => `[${e.funcion}] ${e.titulo}:\n${e.contenido}`).join('\n\n')
+    : '';
+
+  const contexto = (manualesText + fallbackText) || 'Sin información cargada todavía para estas funciones.';
 
   const systemPrompt = `Sos el asistente operativo de Don Emilio, empresa agropecuaria argentina. Especializado en: ${funciones}.
 
 BASE DE CONOCIMIENTO DISPONIBLE:
-${entriesText || 'Sin información cargada todavía para estas funciones.'}
+${contexto}
 
 REGLAS ESTRICTAS:
 - Respondé EXCLUSIVAMENTE usando la base de conocimiento provista arriba.
@@ -59,14 +77,6 @@ REGLAS ESTRICTAS:
 
   return response.choices[0].message.content;
 }
-
-const BLOQUE_NOMBRES = {
-  B2: 'Funciones y responsabilidades',
-  B3: 'Perfil del puesto',
-  B4: 'Procesos y procedimientos',
-  B5: 'Relaciones e interfaces',
-  B6: 'Herramientas y sistemas'
-};
 
 export async function generarPreguntasIA(funcion, prevAnswers, bloqueObjetivo = 'B4') {
   const answeredCount = prevAnswers.length;
