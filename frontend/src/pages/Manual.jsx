@@ -588,6 +588,14 @@ function ManualSection({ funcion, color }) {
 }
 
 // ─── Entries section ──────────────────────────────────────────────────────────
+const EDITED_KEY = 'remi_edited_entries'
+function loadEditedIds() {
+  try { return new Set(JSON.parse(localStorage.getItem(EDITED_KEY) || '[]')) } catch { return new Set() }
+}
+function persistEditedIds(ids) {
+  try { localStorage.setItem(EDITED_KEY, JSON.stringify([...ids])) } catch {}
+}
+
 function EntradasSection({ funcion, color, refreshTrigger }) {
   const [entries, setEntries] = useState([])
   const [loading, setLoading] = useState(false)
@@ -595,8 +603,8 @@ function EntradasSection({ funcion, color, refreshTrigger }) {
   const [editingId, setEditingId] = useState(null)
   const [editContent, setEditContent] = useState('')
   const [saving, setSaving] = useState(false)
-  const [recentlyEdited, setRecentlyEdited] = useState(null)
-  const [autoSensibleNote, setAutoSensibleNote] = useState(false)
+  const [editedIds, setEditedIds] = useState(loadEditedIds)
+  const [autoSensibleIds, setAutoSensibleIds] = useState(new Set())
 
   useEffect(() => { loadEntries() }, [funcion, refreshTrigger])
 
@@ -604,7 +612,12 @@ function EntradasSection({ funcion, color, refreshTrigger }) {
     setLoading(true)
     try {
       const res = await api.get('/knowledge', { params: { funcion, categoria: 'checkin' } })
-      setEntries(res.data.data || [])
+      const all = res.data.data || []
+      const stored = loadEditedIds()
+      // Move previously edited entries to the top, preserving their relative order
+      const edited = all.filter(e => stored.has(e.id))
+      const rest = all.filter(e => !stored.has(e.id))
+      setEntries([...edited, ...rest])
     } catch { /* ignore */ }
     finally { setLoading(false) }
   }
@@ -616,9 +629,12 @@ function EntradasSection({ funcion, color, refreshTrigger }) {
       const updated = res.data.data
       setEntries(prev => [updated, ...prev.filter(e => e.id !== id)])
       setEditingId(null)
-      setRecentlyEdited(id)
-      setAutoSensibleNote(!!res.data.sensibleAutoDetectado)
-      setTimeout(() => { setRecentlyEdited(null); setAutoSensibleNote(false) }, 6000)
+      setEditedIds(prev => {
+        const next = new Set([...prev, id])
+        persistEditedIds(next)
+        return next
+      })
+      if (res.data.sensibleAutoDetectado) setAutoSensibleIds(prev => new Set([...prev, id]))
     } catch { /* ignore */ }
     finally { setSaving(false) }
   }
@@ -639,11 +655,13 @@ function EntradasSection({ funcion, color, refreshTrigger }) {
       {expanded && !loading && (
         <div className="mt-3 flex flex-col gap-2">
           {entries.map(entry => {
-            const isRecent = recentlyEdited === entry.id
+            const isEdited = editedIds.has(entry.id)
+            const isAutoSensible = autoSensibleIds.has(entry.id)
+            const isSensible = entry.esSensible || entry._bloqueado
             return (
               <div
                 key={entry.id}
-                className={`rounded-lg p-3 transition-all duration-700 ${isRecent ? 'ring-2 ring-amber-300 bg-amber-50' : 'bg-[#f9faf9]'}`}
+                className={`rounded-lg p-3 ${isEdited ? 'ring-2 ring-amber-300 bg-amber-50' : 'bg-[#f9faf9]'}`}
               >
                 <p className="text-xs font-semibold mb-1" style={{ color }}>{entry.titulo}</p>
                 {editingId === entry.id ? (
@@ -660,19 +678,19 @@ function EntradasSection({ funcion, color, refreshTrigger }) {
                 ) : (
                   <div className="flex items-start gap-2">
                     <p className="text-sm flex-1 leading-relaxed">
-                      {entry._bloqueado
-                        ? <span className="text-muted-foreground italic">🔒 Información sensible restringida</span>
+                      {isSensible
+                        ? <span className="text-muted-foreground italic">🔒 Información sensible — consultá el asistente</span>
                         : entry.contenido}
                     </p>
-                    {!entry._bloqueado && (
+                    {!isSensible && (
                       <button onClick={() => { setEditingId(entry.id); setEditContent(entry.contenido) }} className="p-1 text-muted-foreground hover:text-foreground shrink-0 transition-colors">
                         <Pencil size={13} />
                       </button>
                     )}
                   </div>
                 )}
-                {isRecent && autoSensibleNote && (
-                  <p className="text-xs text-amber-700 mt-1.5 flex items-center gap-1">
+                {isAutoSensible && (
+                  <p className="text-xs text-amber-700 mt-1.5">
                     🔒 Marcada automáticamente como sensible
                   </p>
                 )}

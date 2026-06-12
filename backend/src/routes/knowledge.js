@@ -121,7 +121,16 @@ router.put('/:id', async (req, res) => {
     const finalSensible = manualSensible || autoDetectado;
 
     await entry.update({ titulo, contenido, categoria, esSensible: finalSensible });
-    res.json({ success: true, data: entry, sensibleAutoDetectado: autoDetectado && !wasAlreadySensible });
+
+    // Re-fetch so afterFind hook decrypts the content before responding
+    const refreshed = await KnowledgeEntry.findByPk(entry.id);
+    const responseData = refreshed.toJSON();
+    if (responseData.esSensible && !canSeeSensitive(req.user, responseData.funcion)) {
+      responseData.contenido = '[Contenido sensible — no tenés acceso a esta función]';
+      responseData._bloqueado = true;
+    }
+
+    res.json({ success: true, data: responseData, sensibleAutoDetectado: autoDetectado && !wasAlreadySensible });
   } catch {
     res.status(500).json({ success: false, error: 'Error interno' });
   }
