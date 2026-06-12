@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { Op } from 'sequelize';
 import { verifyJWT } from '../auth.js';
 import { KnowledgeEntry } from '../models/index.js';
+import { detectSensitive } from '../utils/detectSensitive.js';
 
 const router = Router();
 router.use(verifyJWT);
@@ -63,11 +64,15 @@ router.post('/', async (req, res) => {
       return res.status(403).json({ success: false, error: 'No tenés acceso a esa función' });
     }
 
-    // Solo superadmin puede crear entradas sensibles
-    const sensible = esSensible === true;
-    if (sensible && req.user.rol !== 'superadmin') {
+    // Solo superadmin puede marcar manualmente como sensible
+    const manualSensible = esSensible === true;
+    if (manualSensible && req.user.rol !== 'superadmin') {
       return res.status(403).json({ success: false, error: 'Solo el superadmin puede marcar entradas como sensibles' });
     }
+
+    // Auto-detect sensitive content (keyword + AI)
+    const autoDetectado = !manualSensible ? await detectSensitive(titulo, contenido) : false;
+    const sensible = manualSensible || autoDetectado;
 
     const entry = await KnowledgeEntry.create({
       organizacionId: req.user.organizacionId,
@@ -79,7 +84,7 @@ router.post('/', async (req, res) => {
       usuarioId: req.user.id
     });
 
-    res.status(201).json({ success: true, data: entry });
+    res.status(201).json({ success: true, data: entry, sensibleAutoDetectado: autoDetectado });
   } catch {
     res.status(500).json({ success: false, error: 'Error interno' });
   }
@@ -103,13 +108,20 @@ router.put('/:id', async (req, res) => {
 
     const { titulo, contenido, categoria, esSensible } = req.body;
 
-    // Solo superadmin puede cambiar esSensible
-    const newSensible = esSensible !== undefined
+    // Solo superadmin puede cambiar esSensible manualmente
+    const manualSensible = esSensible !== undefined
       ? (req.user.rol === 'superadmin' ? esSensible : entry.esSensible)
       : entry.esSensible;
 
-    await entry.update({ titulo, contenido, categoria, esSensible: newSensible });
-    res.json({ success: true, data: entry });
+    // Auto-detect on updated content if not already sensitive
+    const wasAlreadySensible = entry.esSensible;
+    const tituloFinal = titulo ?? entry.titulo;
+    const contenidoFinal = contenido ?? entry.contenido;
+    const autoDetectado = !manualSensible ? await detectSensitive(tituloFinal, contenidoFinal) : false;
+    const finalSensible = manualSensible || autoDetectado;
+
+    await entry.update({ titulo, contenido, categoria, esSensible: finalSensible });
+    res.json({ success: true, data: entry, sensibleAutoDetectado: autoDetectado && !wasAlreadySensible });
   } catch {
     res.status(500).json({ success: false, error: 'Error interno' });
   }

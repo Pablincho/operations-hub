@@ -172,7 +172,12 @@ function ManualCard({ manual: initialManual, onResolved }) {
 
   async function devolverBloque(bloque, observacion) {
     const res = await api.post(`/manual/${manual.id}/devolver-bloque`, { bloque, observacion })
-    setManual(prev => ({ ...prev, bloquesEstado: res.data.data.bloquesEstado }))
+    const updated = res.data.data
+    if (updated.allResolved) {
+      onResolved(manual.id)
+    } else {
+      setManual(prev => ({ ...prev, bloquesEstado: updated.bloquesEstado }))
+    }
   }
 
   async function aprobarTodo() {

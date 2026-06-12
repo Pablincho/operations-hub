@@ -3,6 +3,7 @@ import { Sequelize } from 'sequelize';
 import { verifyJWT, requireAdmin } from '../auth.js';
 import { CheckinSession, KnowledgeEntry } from '../models/index.js';
 import { generarPreguntas, INITIAL_QUESTIONS } from '../services/checkinService.js';
+import { detectSensitive } from '../utils/detectSensitive.js';
 
 const router = Router();
 router.use(verifyJWT);
@@ -134,23 +135,22 @@ router.post('/:id/responder', async (req, res) => {
       respondida: !!(respuestas[i]?.trim())
     }));
 
-    // Persist each answered Q&A as a KnowledgeEntry
-    const knowledgeCreates = updatedPreguntas
-      .filter(p => p.respondida)
-      .map(p =>
-        KnowledgeEntry.create({
+    // Persist each answered Q&A as a KnowledgeEntry, auto-detecting sensitive content
+    await Promise.all(
+      updatedPreguntas.filter(p => p.respondida).map(async p => {
+        const esSensible = await detectSensitive(p.pregunta, p.respuesta);
+        return KnowledgeEntry.create({
           organizacionId: req.user.organizacionId,
           funcion: session.funcion,
           categoria: 'checkin',
           bloque: p.bloque || null,
           titulo: p.pregunta,
           contenido: p.respuesta,
-          esSensible: false,
+          esSensible,
           usuarioId: req.user.id
-        })
-      );
-
-    await Promise.all(knowledgeCreates);
+        });
+      })
+    );
     await session.update({ preguntas: updatedPreguntas, completado: true });
 
     res.json({ success: true, data: session });

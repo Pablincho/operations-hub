@@ -14,99 +14,7 @@ const BLOQUES = {
   B6: 'Herramientas y sistemas'
 };
 
-// Agent 1 — extracts atomic facts from new Q&As
-async function extractFacts(funcion, newQas) {
-  const texto = newQas
-    .map(({ titulo, contenido }) => `P: ${titulo}\nR: ${contenido}`)
-    .join('\n\n');
-
-  const response = await getOpenAI().chat.completions.create({
-    model: 'gpt-4o',
-    messages: [{
-      role: 'user',
-      content: `A partir de las siguientes respuestas sobre el puesto "${funcion}", extraé una lista de hechos concretos y específicos que deben incorporarse a un manual de puesto. Eliminá relleno conversacional y quedáte solo con la información operativa relevante.
-Devolvé SOLO un JSON: {"hechos": ["hecho concreto 1", "hecho concreto 2", ...]}
-
-Respuestas:
-${texto}`
-    }],
-    max_tokens: 500,
-    temperature: 0.1,
-    response_format: { type: 'json_object' }
-  });
-
-  const parsed = JSON.parse(response.choices[0].message.content);
-  return parsed.hechos || [];
-}
-
-// Agent 2 — plans surgical changes: modify a specific sentence or append new text
-async function planChanges(funcion, nombreBloque, existingText, hechos) {
-  const hechosTexto = hechos.map((h, i) => `${i + 1}. ${h}`).join('\n');
-
-  const response = await getOpenAI().chat.completions.create({
-    model: 'gpt-4o',
-    messages: [{
-      role: 'user',
-      content: `Sos editor de manuales de puesto para una empresa agropecuaria argentina.
-
-Texto actual del bloque "${nombreBloque}" del puesto "${funcion}":
-[TEXTO ACTUAL]
-${existingText}
-[FIN TEXTO ACTUAL]
-
-Nuevos hechos a incorporar:
-${hechosTexto}
-
-Para cada hecho decidí la acción mínima necesaria:
-- Si el hecho expande o corrige algo ya mencionado en el texto: usá "modify" con la frase EXACTA (copiada textualmente del texto actual) y su reemplazo.
-- Si el hecho es completamente nuevo y no tiene relación directa con ninguna frase existente: usá "append" con el texto nuevo redactado en primera persona, prosa fluida.
-
-REGLA CRÍTICA: en "original" copiá la frase textualmente como aparece en el texto actual, sin cambiar ninguna palabra ni puntuación.
-Usá separación numérica en español: punto para miles, coma para decimales (ej: 1.000 pesos, 10,5%).
-
-Devolvé SOLO un JSON:
-{
-  "changes": [
-    {"type": "modify", "original": "frase textual del texto actual", "replacement": "frase expandida o corregida"},
-    {"type": "append", "text": "nuevo párrafo u oración a agregar al final"}
-  ]
-}`
-    }],
-    max_tokens: 1200,
-    temperature: 0.1,
-    response_format: { type: 'json_object' }
-  });
-
-  const parsed = JSON.parse(response.choices[0].message.content);
-  return parsed.changes || [];
-}
-
-// Backend applies the plan — GPT never touches the full existing text in write mode
-function applyChanges(existingText, changes) {
-  let result = existingText;
-  const appends = [];
-
-  for (const change of changes) {
-    if (change.type === 'modify' && change.original && change.replacement) {
-      if (result.includes(change.original)) {
-        result = result.replace(change.original, change.replacement);
-      } else {
-        // Original not found exactly — degrade to append to avoid data loss
-        appends.push(change.replacement);
-      }
-    } else if (change.type === 'append' && change.text) {
-      appends.push(change.text);
-    }
-  }
-
-  if (appends.length > 0) {
-    result = result.trimEnd() + '\n\n' + appends.join('\n\n');
-  }
-
-  return result;
-}
-
-// First generation — from scratch
+// Generates a block from scratch using all current entries for that block
 async function generarBloqueNuevo(funcion, nombreBloque, allQas) {
   const texto = allQas
     .map(({ titulo, contenido }) => `P: ${titulo}\nR: ${contenido}`)
@@ -132,23 +40,47 @@ ${texto}`
   return response.choices[0].message.content.trim();
 }
 
+// Applies minimum changes to an existing block based only on the updated entries.
+// Does NOT rewrite the whole block — preserves all unchanged text verbatim.
+async function actualizarBloqueMinimo(funcion, nombreBloque, existingText, newQas) {
+  const texto = newQas
+    .map(({ titulo, contenido }) => `P: ${titulo}\nR: ${contenido}`)
+    .join('\n\n');
+
+  const response = await getOpenAI().chat.completions.create({
+    model: 'gpt-4o',
+    messages: [{
+      role: 'user',
+      content: `Sos editor de manuales de puesto para una empresa agropecuaria argentina.
+Tu única tarea es hacer la modificación MÍNIMA al texto existente para reflejar los datos actualizados.
+
+TEXTO ACTUAL DEL BLOQUE "${nombreBloque}" (puesto: ${funcion}):
+${existingText}
+
+DATOS ACTUALIZADOS:
+${texto}
+
+REGLAS ESTRICTAS:
+- Modificá ÚNICAMENTE las oraciones directamente relacionadas con los datos actualizados.
+- Conservá el resto del texto exactamente igual: misma redacción, misma puntuación, mismo formato numérico.
+- Si los datos actualizados eliminan información → removela del texto sin tocar lo demás.
+- Si los datos actualizados agregan información nueva → incorporala de forma mínima.
+- Devolvé el texto completo con los cambios mínimos y nada más.`
+    }],
+    max_tokens: 1500,
+    temperature: 0.1
+  });
+
+  return response.choices[0].message.content.trim();
+}
+
+// Blocks with no new entries: return existing text verbatim.
+// Blocks with new/edited entries on an existing block: minimal targeted update.
+// Blocks being generated for the first time: full generation from scratch.
 async function generarBloque(funcion, nombreBloque, existingText, newQas, allQas) {
-  if (existingText) {
-    // Block already exists — only touch it if there are new/edited entries for this block
-    if (newQas.length === 0) return existingText;
-
-    // Agentic flow: extract facts → plan surgical changes → apply in code
-    const hechos = await extractFacts(funcion, newQas);
-    if (!hechos.length) return existingText;
-
-    const changes = await planChanges(funcion, nombreBloque, existingText, hechos);
-    if (!changes.length) return existingText;
-
-    return applyChanges(existingText, changes);
-  }
-
-  // First generation — no existing text for this block
-  return generarBloqueNuevo(funcion, nombreBloque, allQas);
+  if (existingText && newQas.length === 0) return existingText;
+  if (!existingText) return generarBloqueNuevo(funcion, nombreBloque, allQas);
+  return actualizarBloqueMinimo(funcion, nombreBloque, existingText, newQas);
 }
 
 export async function generarManual(funcion, organizacionId, usuarioId, KnowledgeEntry, currentManual) {
@@ -186,6 +118,18 @@ export async function generarManual(funcion, organizacionId, usuarioId, Knowledg
       contenido[bloque] = await generarBloque(funcion, nombre, existingText, newQas, allQas);
     })
   );
+
+  // Verificador: warn if a block had detected changes but produced identical output
+  const bloquesConCambiosSinDiferencia = Object.keys(BLOQUES).filter(bloque => {
+    const hayCambios = (newGrouped[bloque] || []).length > 0;
+    const mismoTexto = contenido[bloque] && existingContenido[bloque]
+      && contenido[bloque] === existingContenido[bloque];
+    return hayCambios && mismoTexto;
+  });
+
+  if (bloquesConCambiosSinDiferencia.length > 0) {
+    console.warn('⚠️ Bloques con cambios detectados pero texto idéntico al anterior:', bloquesConCambiosSinDiferencia);
+  }
 
   return contenido;
 }

@@ -447,12 +447,20 @@ function ManualSection({ funcion, color }) {
                 {exporting ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
                 PDF
               </Button>
-              {manual.estado === 'borrador' && (
-                <Button size="sm" variant="outline" onClick={() => setShowEnviarDialog(true)} className="gap-1 text-xs h-7 border-blue-300 text-blue-700 hover:bg-blue-50">
-                  <Send size={12} />
-                  Enviar a aprobación
-                </Button>
-              )}
+              {manual.estado === 'borrador' && (() => {
+                const tieneDevueltos = manual.bloquesEstado &&
+                  Object.values(manual.bloquesEstado).some(b => b.estado === 'devuelto')
+                return tieneDevueltos ? (
+                  <span className="text-xs text-orange-600 font-medium px-2 py-1 bg-orange-50 rounded-lg border border-orange-200">
+                    Actualizá el manual antes de reenviar
+                  </span>
+                ) : (
+                  <Button size="sm" variant="outline" onClick={() => setShowEnviarDialog(true)} className="gap-1 text-xs h-7 border-blue-300 text-blue-700 hover:bg-blue-50">
+                    <Send size={12} />
+                    Enviar a aprobación
+                  </Button>
+                )
+              })()}
               {manual.estado === 'en_revision' && (
                 <span className="text-xs text-blue-600 font-medium px-2 py-1 bg-blue-50 rounded-lg">
                   En revisión
@@ -587,6 +595,8 @@ function EntradasSection({ funcion, color, refreshTrigger }) {
   const [editingId, setEditingId] = useState(null)
   const [editContent, setEditContent] = useState('')
   const [saving, setSaving] = useState(false)
+  const [recentlyEdited, setRecentlyEdited] = useState(null)
+  const [autoSensibleNote, setAutoSensibleNote] = useState(false)
 
   useEffect(() => { loadEntries() }, [funcion, refreshTrigger])
 
@@ -602,9 +612,13 @@ function EntradasSection({ funcion, color, refreshTrigger }) {
   async function saveEdit(id) {
     setSaving(true)
     try {
-      await api.put(`/knowledge/${id}`, { contenido: editContent })
-      setEntries(prev => prev.map(e => e.id === id ? { ...e, contenido: editContent } : e))
+      const res = await api.put(`/knowledge/${id}`, { contenido: editContent })
+      const updated = res.data.data
+      setEntries(prev => [updated, ...prev.filter(e => e.id !== id)])
       setEditingId(null)
+      setRecentlyEdited(id)
+      setAutoSensibleNote(!!res.data.sensibleAutoDetectado)
+      setTimeout(() => { setRecentlyEdited(null); setAutoSensibleNote(false) }, 6000)
     } catch { /* ignore */ }
     finally { setSaving(false) }
   }
@@ -624,36 +638,47 @@ function EntradasSection({ funcion, color, refreshTrigger }) {
 
       {expanded && !loading && (
         <div className="mt-3 flex flex-col gap-2">
-          {entries.map(entry => (
-            <div key={entry.id} className="rounded-lg p-3" style={{ background: '#f9faf9' }}>
-              <p className="text-xs font-semibold mb-1" style={{ color }}>{entry.titulo}</p>
-              {editingId === entry.id ? (
-                <div>
-                  <Textarea value={editContent} onChange={e => setEditContent(e.target.value)} rows={3} autoFocus className="text-sm" />
-                  <div className="flex gap-2 mt-2">
-                    <Button size="sm" onClick={() => saveEdit(entry.id)} disabled={saving} className="text-xs h-7 gap-1" style={{ background: color, color: 'white' }}>
-                      {saving && <Loader2 size={11} className="animate-spin" />}
-                      Guardar
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => setEditingId(null)} className="text-xs h-7">Cancelar</Button>
+          {entries.map(entry => {
+            const isRecent = recentlyEdited === entry.id
+            return (
+              <div
+                key={entry.id}
+                className={`rounded-lg p-3 transition-all duration-700 ${isRecent ? 'ring-2 ring-amber-300 bg-amber-50' : 'bg-[#f9faf9]'}`}
+              >
+                <p className="text-xs font-semibold mb-1" style={{ color }}>{entry.titulo}</p>
+                {editingId === entry.id ? (
+                  <div>
+                    <Textarea value={editContent} onChange={e => setEditContent(e.target.value)} rows={3} autoFocus className="text-sm" />
+                    <div className="flex gap-2 mt-2">
+                      <Button size="sm" onClick={() => saveEdit(entry.id)} disabled={saving} className="text-xs h-7 gap-1" style={{ background: color, color: 'white' }}>
+                        {saving && <Loader2 size={11} className="animate-spin" />}
+                        Guardar
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => setEditingId(null)} className="text-xs h-7">Cancelar</Button>
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <div className="flex items-start gap-2">
-                  <p className="text-sm flex-1 leading-relaxed">
-                    {entry._bloqueado
-                      ? <span className="text-muted-foreground italic">🔒 Información sensible restringida</span>
-                      : entry.contenido}
+                ) : (
+                  <div className="flex items-start gap-2">
+                    <p className="text-sm flex-1 leading-relaxed">
+                      {entry._bloqueado
+                        ? <span className="text-muted-foreground italic">🔒 Información sensible restringida</span>
+                        : entry.contenido}
+                    </p>
+                    {!entry._bloqueado && (
+                      <button onClick={() => { setEditingId(entry.id); setEditContent(entry.contenido) }} className="p-1 text-muted-foreground hover:text-foreground shrink-0 transition-colors">
+                        <Pencil size={13} />
+                      </button>
+                    )}
+                  </div>
+                )}
+                {isRecent && autoSensibleNote && (
+                  <p className="text-xs text-amber-700 mt-1.5 flex items-center gap-1">
+                    🔒 Marcada automáticamente como sensible
                   </p>
-                  {!entry._bloqueado && (
-                    <button onClick={() => { setEditingId(entry.id); setEditContent(entry.contenido) }} className="p-1 text-muted-foreground hover:text-foreground shrink-0 transition-colors">
-                      <Pencil size={13} />
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          ))}
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
     </div>

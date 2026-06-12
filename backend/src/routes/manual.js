@@ -205,6 +205,16 @@ router.post('/:funcion/enviar', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Supervisor no encontrado.' });
     }
 
+    // Block re-send if the manual was returned and not yet regenerated
+    const tieneDevueltos = manual.bloquesEstado &&
+      Object.values(manual.bloquesEstado).some(b => b.estado === 'devuelto');
+    if (tieneDevueltos) {
+      return res.status(400).json({
+        success: false,
+        error: 'El manual tiene bloques devueltos. Actualizá el manual antes de reenviar.'
+      });
+    }
+
     // Assign version 1.0 on first send; keep existing version on subsequent sends
     const version = manual.version === 'Borrador' ? '1.0' : manual.version;
 
@@ -349,9 +359,25 @@ router.post('/:id/devolver-bloque', requireAdmin, async (req, res) => {
     const bloquesEstado = { ...(manual.bloquesEstado || {}) };
     bloquesEstado[bloque] = { estado: 'devuelto', observacion: observacion?.trim() || null };
 
-    await manual.update({ bloquesEstado });
+    const allResolved = Object.values(bloquesEstado).every(b => b.estado !== 'en_revision');
+    const updates = { bloquesEstado };
+    if (allResolved) updates.estado = 'borrador';
 
-    res.json({ success: true, data: manual });
+    await manual.update(updates);
+
+    if (allResolved && ocupante) {
+      const obs = Object.values(bloquesEstado)
+        .filter(b => b.estado === 'devuelto' && b.observacion)
+        .map(b => b.observacion)
+        .join('\n');
+      try {
+        await sendManualDevueltoEmail(ocupante.email, manual.funcion, obs || 'Ver observaciones en el sistema.');
+      } catch (emailErr) {
+        console.error('Error enviando email de devolución:', emailErr.message);
+      }
+    }
+
+    res.json({ success: true, data: { ...manual.toJSON(), allResolved } });
   } catch {
     res.status(500).json({ success: false, error: 'Error interno' });
   }
