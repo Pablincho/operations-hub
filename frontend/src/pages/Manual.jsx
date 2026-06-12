@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { FUNC_ICONS, FUNC_COLORS } from '@/lib/utils'
 import {
   Loader2, Download, Send, Sparkles, ChevronDown, ChevronUp,
-  Pencil, RefreshCw, BookOpen, CalendarCheck, CheckCircle2
+  Pencil, RefreshCw, BookOpen, CalendarCheck, CheckCircle2, RotateCcw
 } from 'lucide-react'
 
 const LOGO_URL = 'https://res.cloudinary.com/dmigevwah/image/upload/f_png/v1777495745/don_emilio/don_emilio_logo'
@@ -43,6 +43,10 @@ const pdfStyles = StyleSheet.create({
   tableRow: { flexDirection: 'row', paddingVertical: 4, paddingHorizontal: 8, borderBottom: '0.5pt solid #eee' },
   tableRowAlt: { backgroundColor: '#f5f7f5' },
   tableCell: { fontSize: 9, color: '#444' },
+  // Firma digital
+  firmaBox: { marginTop: 20, borderTop: '1pt solid #1a3a1a', paddingTop: 12 },
+  firmaTitulo: { fontSize: 9, fontFamily: 'Helvetica-Bold', color: '#1a3a1a', marginBottom: 6 },
+  firmaNote: { fontSize: 7, color: '#888', marginTop: 6 },
   footer: { position: 'absolute', bottom: 28, left: 48, right: 48, fontSize: 8, color: '#999', borderTop: '0.5pt solid #ddd', paddingTop: 6, flexDirection: 'row', justifyContent: 'space-between' }
 })
 
@@ -68,6 +72,15 @@ const ESTADO_PDF = {
 function fmtDate(d) {
   if (!d) return '—'
   return new Date(d).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })
+}
+
+function fmtDateTime(d) {
+  if (!d) return '—'
+  return new Date(d).toLocaleString('es-AR', {
+    timeZone: 'America/Argentina/Buenos_Aires',
+    day: 'numeric', month: 'long', year: 'numeric',
+    hour: '2-digit', minute: '2-digit'
+  }) + ' hs'
 }
 
 // ─── PDF ──────────────────────────────────────────────────────────────────────
@@ -176,6 +189,28 @@ function ManualPDF({ funcion, manual, historial = [] }) {
                 <Text style={[pdfStyles.tableCell, { flex: 1.5 }]}>{ESTADO_PDF[h.estado] || h.estado}</Text>
               </View>
             ))}
+          </View>
+        )}
+
+        {/* Firma digital — solo en manuales vigentes */}
+        {estado === 'vigente' && aprobadoEn && (
+          <View style={pdfStyles.firmaBox}>
+            <Text style={pdfStyles.firmaTitulo}>Registro de aprobación</Text>
+            <View style={pdfStyles.b0Grid}>
+              {aprobadoPorNombre && (
+                <View style={pdfStyles.b0Cell}>
+                  <Text style={pdfStyles.b0Label}>Aprobado por</Text>
+                  <Text style={pdfStyles.b0Value}>{aprobadoPorNombre}</Text>
+                </View>
+              )}
+              <View style={pdfStyles.b0Cell}>
+                <Text style={pdfStyles.b0Label}>Fecha y hora (Buenos Aires)</Text>
+                <Text style={pdfStyles.b0Value}>{fmtDateTime(aprobadoEn)}</Text>
+              </View>
+            </View>
+            <Text style={pdfStyles.firmaNote}>
+              Este registro es inmutable. Sistema: REMI — Registro de Experiencia y Memoria Institucional · Don Emilio
+            </Text>
           </View>
         )}
 
@@ -420,7 +455,7 @@ function ManualSection({ funcion, color }) {
               )}
               {manual.estado === 'en_revision' && (
                 <span className="text-xs text-blue-600 font-medium px-2 py-1 bg-blue-50 rounded-lg">
-                  Aguardando revisión...
+                  En revisión
                 </span>
               )}
             </>
@@ -441,6 +476,35 @@ function ManualSection({ funcion, color }) {
           <p className="text-xs text-muted-foreground mb-1">
             Última generación: {new Date(manual.generadoEn).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}
           </p>
+
+          {/* Estado por bloque durante revisión */}
+          {manual.estado === 'en_revision' && manual.bloquesEstado && (
+            <div className="mb-3 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2.5">
+              <p className="text-xs font-semibold text-blue-700 mb-2">Estado de revisión</p>
+              <div className="flex flex-col gap-1">
+                {Object.entries(BLOQUE_NOMBRES).filter(([k]) => manual.contenido?.[k]).map(([k, nombre]) => {
+                  const bs = manual.bloquesEstado?.[k]
+                  const est = bs?.estado || 'en_revision'
+                  return (
+                    <div key={k} className="flex items-start gap-2 text-xs">
+                      {est === 'aprobado'
+                        ? <CheckCircle2 size={12} className="text-green-500 mt-0.5 shrink-0" />
+                        : est === 'devuelto'
+                        ? <RotateCcw size={12} className="text-orange-500 mt-0.5 shrink-0" />
+                        : <div className="w-3 h-3 rounded-full border-2 border-blue-300 mt-0.5 shrink-0" />}
+                      <span style={{ color: est === 'aprobado' ? '#16a34a' : est === 'devuelto' ? '#ea580c' : '#6b7280' }}>
+                        {nombre}
+                        {bs?.observacion && (
+                          <span className="block italic text-orange-700 mt-0.5">→ {bs.observacion}</span>
+                        )}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           {bloques.map(([key, nombre]) => (
             <div key={key} className="border rounded-lg overflow-hidden">
               <button

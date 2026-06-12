@@ -208,11 +208,17 @@ router.post('/:funcion/enviar', async (req, res) => {
     // Assign version 1.0 on first send; keep existing version on subsequent sends
     const version = manual.version === 'Borrador' ? '1.0' : manual.version;
 
+    const bloquesEstado = {};
+    for (const bloque of Object.keys(manual.contenido || {})) {
+      if (manual.contenido[bloque]) bloquesEstado[bloque] = { estado: 'en_revision', observacion: null };
+    }
+
     await manual.update({
       estado: 'en_revision',
       version,
       notaEnvio: nota?.trim() || null,
-      observaciones: null
+      observaciones: null,
+      bloquesEstado
     });
 
     // Email al supervisor
@@ -247,10 +253,16 @@ router.post('/:id/aprobar', requireAdmin, async (req, res) => {
 
     const aprobador = await Usuario.findByPk(req.user.id);
 
+    const bloquesEstadoAll = {};
+    for (const bloque of Object.keys(manual.contenido || {})) {
+      if (manual.contenido[bloque]) bloquesEstadoAll[bloque] = { estado: 'aprobado', observacion: null };
+    }
+
     await manual.update({
       estado: 'vigente',
       aprobadoPor: req.user.id,
-      aprobadoEn: new Date()
+      aprobadoEn: new Date(),
+      bloquesEstado: bloquesEstadoAll
     });
 
     // Email al ocupante
@@ -259,6 +271,74 @@ router.post('/:id/aprobar', requireAdmin, async (req, res) => {
     } catch (emailErr) {
       console.error('Error enviando email de aprobación:', emailErr.message);
     }
+
+    res.json({ success: true, data: manual });
+  } catch {
+    res.status(500).json({ success: false, error: 'Error interno' });
+  }
+});
+
+// POST approve a single block
+router.post('/:id/aprobar-bloque', requireAdmin, async (req, res) => {
+  try {
+    const { bloque } = req.body;
+    if (!bloque) return res.status(400).json({ success: false, error: 'Bloque requerido' });
+
+    const manual = await Manual.findOne({ where: { id: req.params.id, estado: 'en_revision' } });
+    if (!manual) return res.status(404).json({ success: false, error: 'Manual no encontrado' });
+
+    const ocupante = await Usuario.findOne({ where: { id: manual.usuarioId, supervisorId: req.user.id } });
+    if (!ocupante && req.user.rol !== 'superadmin') {
+      return res.status(403).json({ success: false, error: 'Sin permiso' });
+    }
+
+    const bloquesEstado = { ...(manual.bloquesEstado || {}) };
+    bloquesEstado[bloque] = { estado: 'aprobado', observacion: null };
+
+    const allAprobados = Object.keys(bloquesEstado).length > 0 &&
+      Object.values(bloquesEstado).every(b => b.estado === 'aprobado');
+
+    const updates = { bloquesEstado };
+    if (allAprobados) {
+      updates.estado = 'vigente';
+      updates.aprobadoPor = req.user.id;
+      updates.aprobadoEn = new Date();
+    }
+
+    await manual.update(updates);
+
+    if (allAprobados && ocupante) {
+      try {
+        await sendManualAprobadoEmail(ocupante.email, manual.funcion, req.user.nombre);
+      } catch (emailErr) {
+        console.error('Error enviando email de aprobación:', emailErr.message);
+      }
+    }
+
+    res.json({ success: true, data: { ...manual.toJSON(), allAprobados } });
+  } catch {
+    res.status(500).json({ success: false, error: 'Error interno' });
+  }
+});
+
+// POST return a single block with observation
+router.post('/:id/devolver-bloque', requireAdmin, async (req, res) => {
+  try {
+    const { bloque, observacion } = req.body;
+    if (!bloque) return res.status(400).json({ success: false, error: 'Bloque requerido' });
+
+    const manual = await Manual.findOne({ where: { id: req.params.id, estado: 'en_revision' } });
+    if (!manual) return res.status(404).json({ success: false, error: 'Manual no encontrado' });
+
+    const ocupante = await Usuario.findOne({ where: { id: manual.usuarioId, supervisorId: req.user.id } });
+    if (!ocupante && req.user.rol !== 'superadmin') {
+      return res.status(403).json({ success: false, error: 'Sin permiso' });
+    }
+
+    const bloquesEstado = { ...(manual.bloquesEstado || {}) };
+    bloquesEstado[bloque] = { estado: 'devuelto', observacion: observacion?.trim() || null };
+
+    await manual.update({ bloquesEstado });
 
     res.json({ success: true, data: manual });
   } catch {

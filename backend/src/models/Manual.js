@@ -50,6 +50,10 @@ export function ManualModel(sequelize) {
     aprobadoEn: {
       type: DataTypes.DATE,
       allowNull: true
+    },
+    bloquesEstado: {
+      type: DataTypes.JSONB,
+      allowNull: true
     }
   }, {
     tableName: 'Manuales'
