@@ -271,18 +271,6 @@ export default function Admin() {
               Se asignará una contraseña temporal ({defaultUserPassword}) y el usuario deberá cambiarla al ingresar.
             </p>
             <div>
-              <label className="text-xs font-medium mb-1 block">Rol</label>
-              <select
-                value={newForm.rol}
-                onChange={e => setNewForm(f => ({ ...f, rol: e.target.value }))}
-                className="w-full text-sm border rounded-lg px-2 py-1.5 bg-background"
-              >
-                <option value="operativo">Operativo</option>
-                {isSuperAdmin && <option value="admin">Admin</option>}
-                {isSuperAdmin && <option value="superadmin">Superadmin</option>}
-              </select>
-            </div>
-            <div>
               <label className="text-xs font-medium mb-1 block">Funciones</label>
               <div className="flex flex-wrap gap-2">
                 {FUNCIONES.map(fn => (
