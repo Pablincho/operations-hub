@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { diffWords } from 'diff'
 import api from '@/services/api'
 import { Button } from '@/components/ui/button'
@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { FUNC_ICONS, FUNC_COLORS } from '@/lib/utils'
+import { useNotifications } from '@/contexts/NotificationsContext'
 import { CheckCircle2, ChevronDown, ChevronUp, Loader2, RotateCcw, ClipboardCheck, GitCompare, FileText, X } from 'lucide-react'
 
 const BLOQUE_NOMBRES = {
@@ -306,6 +307,7 @@ function ManualCard({ manual: initialManual, onResolved }) {
 export default function Revisiones() {
   const [manuales, setManuales] = useState([])
   const [loading, setLoading] = useState(true)
+  const { refresh: refreshNotifications } = useNotifications()
 
   useEffect(() => { load() }, [])
 
@@ -320,6 +322,7 @@ export default function Revisiones() {
 
   function removeManual(id) {
     setManuales(prev => prev.filter(m => m.id !== id))
+    refreshNotifications()
   }
 
   return (
