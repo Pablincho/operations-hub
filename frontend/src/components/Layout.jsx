@@ -1,16 +1,11 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
-import { Button } from '@/components/ui/button'
+import { useNotifications } from '@/contexts/NotificationsContext'
 import { Bot, BookText, LayoutDashboard, Settings, LogOut, ClipboardCheck } from 'lucide-react'
-
-const navItems = [
-  { to: '/dashboard', label: 'Inicio', icon: LayoutDashboard },
-  { to: '/manual', label: 'Mi Manual', icon: BookText },
-  { to: '/asistente', label: 'Asistente', icon: Bot },
-]
 
 export default function Layout({ children }) {
   const { user, logout } = useAuth()
+  const { tieneCheckin, tieneRevisiones } = useNotifications()
   const navigate = useNavigate()
   const headerLogoUrl = 'https://res.cloudinary.com/dmigevwah/image/upload/v1777497691/don_emilio/don_emilio_logo_header.svg'
 
@@ -40,17 +35,19 @@ export default function Layout({ children }) {
         </div>
 
         <nav className="hidden sm:flex items-center gap-1">
-          {navItems.map(({ to, label, icon: Icon }) => (
+          {[
+            { to: '/dashboard', label: 'Inicio', icon: LayoutDashboard, dot: false },
+            { to: '/manual', label: 'Mi Manual', icon: BookText, dot: tieneCheckin },
+            { to: '/asistente', label: 'Asistente', icon: Bot, dot: false },
+          ].map(({ to, label, icon: Icon, dot }) => (
             <NavLink key={to} to={to}>
               {({ isActive }) => (
-                <button
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
-                  style={{
-                    background: isActive ? 'rgba(255,255,255,0.2)' : 'transparent',
-                    color: '#e8d5a3'
-                  }}
-                >
-                  <Icon size={14} />
+                <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                  style={{ background: isActive ? 'rgba(255,255,255,0.2)' : 'transparent', color: '#e8d5a3' }}>
+                  <span className="relative">
+                    <Icon size={14} />
+                    {dot && <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-amber-400 border border-[#1a3a1a]" />}
+                  </span>
                   {label}
                 </button>
               )}
@@ -60,21 +57,20 @@ export default function Layout({ children }) {
             <>
               <NavLink to="/revisiones">
                 {({ isActive }) => (
-                  <button
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
-                    style={{ background: isActive ? 'rgba(255,255,255,0.2)' : 'transparent', color: '#e8d5a3' }}
-                  >
-                    <ClipboardCheck size={14} />
+                  <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                    style={{ background: isActive ? 'rgba(255,255,255,0.2)' : 'transparent', color: '#e8d5a3' }}>
+                    <span className="relative">
+                      <ClipboardCheck size={14} />
+                      {tieneRevisiones && <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-amber-400 border border-[#1a3a1a]" />}
+                    </span>
                     Revisiones
                   </button>
                 )}
               </NavLink>
               <NavLink to="/admin">
                 {({ isActive }) => (
-                  <button
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
-                    style={{ background: isActive ? 'rgba(255,255,255,0.2)' : 'transparent', color: '#e8d5a3' }}
-                  >
+                  <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                    style={{ background: isActive ? 'rgba(255,255,255,0.2)' : 'transparent', color: '#e8d5a3' }}>
                     <Settings size={14} />
                     Admin
                   </button>
@@ -96,18 +92,19 @@ export default function Layout({ children }) {
 
       {/* Mobile nav */}
       <nav className="sm:hidden flex gap-1 px-3 py-2 border-b bg-white overflow-x-auto shrink-0">
-        {navItems.map(({ to, label, icon: Icon }) => (
+        {[
+          { to: '/dashboard', label: 'Inicio', icon: LayoutDashboard, dot: false },
+          { to: '/manual', label: 'Mi Manual', icon: BookText, dot: tieneCheckin },
+          { to: '/asistente', label: 'Asistente', icon: Bot, dot: false },
+        ].map(({ to, label, icon: Icon, dot }) => (
           <NavLink key={to} to={to}>
             {({ isActive }) => (
-              <button
-                className="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg text-xs transition-colors whitespace-nowrap"
-                style={{
-                  background: isActive ? '#f0f7f0' : 'transparent',
-                  color: isActive ? '#1a3a1a' : '#666',
-                  fontWeight: isActive ? 600 : 400
-                }}
-              >
-                <Icon size={16} />
+              <button className="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg text-xs transition-colors whitespace-nowrap"
+                style={{ background: isActive ? '#f0f7f0' : 'transparent', color: isActive ? '#1a3a1a' : '#666', fontWeight: isActive ? 600 : 400 }}>
+                <span className="relative">
+                  <Icon size={16} />
+                  {dot && <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-amber-400 border border-white" />}
+                </span>
                 {label}
               </button>
             )}
@@ -117,21 +114,20 @@ export default function Layout({ children }) {
           <>
             <NavLink to="/revisiones">
               {({ isActive }) => (
-                <button
-                  className="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg text-xs whitespace-nowrap"
-                  style={{ background: isActive ? '#f0f7f0' : 'transparent', color: isActive ? '#1a3a1a' : '#666', fontWeight: isActive ? 600 : 400 }}
-                >
-                  <ClipboardCheck size={16} />
+                <button className="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg text-xs whitespace-nowrap"
+                  style={{ background: isActive ? '#f0f7f0' : 'transparent', color: isActive ? '#1a3a1a' : '#666', fontWeight: isActive ? 600 : 400 }}>
+                  <span className="relative">
+                    <ClipboardCheck size={16} />
+                    {tieneRevisiones && <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-amber-400 border border-white" />}
+                  </span>
                   Revisiones
                 </button>
               )}
             </NavLink>
             <NavLink to="/admin">
               {({ isActive }) => (
-                <button
-                  className="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg text-xs whitespace-nowrap"
-                  style={{ background: isActive ? '#f0f7f0' : 'transparent', color: isActive ? '#1a3a1a' : '#666', fontWeight: isActive ? 600 : 400 }}
-                >
+                <button className="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg text-xs whitespace-nowrap"
+                  style={{ background: isActive ? '#f0f7f0' : 'transparent', color: isActive ? '#1a3a1a' : '#666', fontWeight: isActive ? 600 : 400 }}>
                   <Settings size={16} />
                   Admin
                 </button>
