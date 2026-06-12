@@ -85,7 +85,7 @@ async function generarBloque(funcion, nombreBloque, existingText, newQas, allQas
 
 export async function generarManual(funcion, organizacionId, usuarioId, KnowledgeEntry, currentManual) {
   const entries = await KnowledgeEntry.findAll({
-    where: { funcion, organizacionId, usuarioId, categoria: 'checkin' },
+    where: { funcion, organizacionId, usuarioId, categoria: 'checkin', esSensible: false },
     attributes: ['titulo', 'contenido', 'bloque', 'createdAt', 'updatedAt'],
     order: [['createdAt', 'ASC']]
   });

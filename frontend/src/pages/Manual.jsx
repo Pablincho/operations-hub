@@ -17,13 +17,14 @@ const LOGO_URL = 'https://res.cloudinary.com/dmigevwah/image/upload/f_png/v17774
 
 const pdfStyles = StyleSheet.create({
   page: { padding: 48, paddingBottom: 72, fontFamily: 'Helvetica', fontSize: 10, color: '#222' },
+  // Control documental — compact single-line header
+  docControlBar: { borderBottom: '0.5pt solid #ddd', paddingBottom: 5, marginBottom: 14 },
+  docControlText: { fontSize: 7.5, color: '#aaa' },
   header: { marginBottom: 16, borderBottom: '1pt solid #1a3a1a', paddingBottom: 14 },
   headerRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 },
   logo: { height: 54, width: 180, objectFit: 'contain' },
   title: { fontSize: 17, fontFamily: 'Helvetica-Bold', color: '#1a3a1a' },
-  // B0 — Control documental
-  b0Box: { border: '0.5pt solid #ccc', borderRadius: 4, padding: 10, marginBottom: 16, backgroundColor: '#f9faf9' },
-  b0Title: { fontSize: 8, fontFamily: 'Helvetica-Bold', color: '#888', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 },
+  // Grilla para firma (reutilizada)
   b0Grid: { flexDirection: 'row', gap: 8, marginBottom: 4 },
   b0Cell: { flex: 1 },
   b0Label: { fontSize: 7.5, color: '#888', marginBottom: 1 },
@@ -34,10 +35,10 @@ const pdfStyles = StyleSheet.create({
   b1Label: { fontSize: 9, color: '#888', width: 110 },
   b1Value: { fontSize: 9, fontFamily: 'Helvetica-Bold', color: '#333', flex: 1 },
   // Bloques B2-B6
-  bloque: { marginBottom: 16 },
-  bloqueTitle: { fontSize: 13, fontFamily: 'Helvetica-Bold', color: '#1a3a1a', marginBottom: 8 },
-  bloqueText: { lineHeight: 1.4, textAlign: 'justify', color: '#333' },
-  // B9 — Historial
+  bloque: { marginBottom: 20, minPresenceAhead: 0 },
+  bloqueTitle: { fontSize: 13, fontFamily: 'Helvetica-Bold', color: '#1a3a1a', marginBottom: 16 },
+  bloqueText: { lineHeight: 1.2, textAlign: 'justify', color: '#333' },
+  // Historial
   tableHeader: { flexDirection: 'row', backgroundColor: '#1a3a1a', borderRadius: 2, paddingVertical: 5, paddingHorizontal: 8, marginBottom: 2 },
   tableHeaderCell: { fontSize: 8, fontFamily: 'Helvetica-Bold', color: '#e8d5a3' },
   tableRow: { flexDirection: 'row', paddingVertical: 4, paddingHorizontal: 8, borderBottom: '0.5pt solid #eee' },
@@ -83,6 +84,14 @@ function fmtDateTime(d) {
   }) + ' hs'
 }
 
+// Replace encrypted hex strings in generated manual text with ***
+function maskEncrypted(text) {
+  if (!text) return text
+  return text
+    .replace(/[0-9a-f]{24}:[0-9a-f]{32}:[0-9a-f]+/gi, '***')
+    .replace(/\n{2,}/g, '\n')
+}
+
 // ─── PDF ──────────────────────────────────────────────────────────────────────
 function ManualPDF({ funcion, manual, historial = [] }) {
   const {
@@ -92,56 +101,39 @@ function ManualPDF({ funcion, manual, historial = [] }) {
 
   const bloques = Object.entries(BLOQUE_NOMBRES)
     .filter(([key]) => contenido[key])
-    .map(([key, nombre]) => ({ key, nombre, texto: contenido[key] }))
+    .map(([key, nombre]) => ({ key, nombre, texto: maskEncrypted(contenido[key]) }))
+
+  const docControlParts = [
+    version,
+    ESTADO_PDF[estado] || estado,
+    generadoEn ? `Generado: ${fmtDate(generadoEn)}` : null,
+    aprobadoEn ? `Aprobado: ${fmtDate(aprobadoEn)}` : null,
+    ocupanteNombre ? `Elaborado por: ${ocupanteNombre}` : null,
+    aprobadoPorNombre ? `Aprobado por: ${aprobadoPorNombre}` : null,
+  ].filter(Boolean).join(' · ')
+
+  const PageFooter = () => (
+    <View style={pdfStyles.footer} fixed>
+      <Text>Registro de Experiencia y Memoria Institucional (REMI) · Don Emilio</Text>
+      <Text render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
+    </View>
+  )
 
   return (
     <Document>
+      {/* ── Contenido principal ── */}
       <Page size="A4" style={pdfStyles.page}>
-        {/* Header */}
+        {/* Control documental — encabezado compacto en una sola línea */}
+        <View style={pdfStyles.docControlBar}>
+          <Text style={pdfStyles.docControlText}>{docControlParts}</Text>
+        </View>
+
+        {/* Logo + título */}
         <View style={pdfStyles.header}>
           <View style={pdfStyles.headerRow}>
             <Image src={LOGO_URL} style={pdfStyles.logo} />
           </View>
           <Text style={pdfStyles.title}>Manual de Puesto: {funcion}</Text>
-        </View>
-
-        {/* B0 — Control documental */}
-        <View style={pdfStyles.b0Box}>
-          <Text style={pdfStyles.b0Title}>Control Documental</Text>
-          <View style={pdfStyles.b0Grid}>
-            <View style={pdfStyles.b0Cell}>
-              <Text style={pdfStyles.b0Label}>Versión</Text>
-              <Text style={pdfStyles.b0Value}>{version}</Text>
-            </View>
-            <View style={pdfStyles.b0Cell}>
-              <Text style={pdfStyles.b0Label}>Estado</Text>
-              <Text style={pdfStyles.b0Value}>{ESTADO_PDF[estado] || estado}</Text>
-            </View>
-            <View style={pdfStyles.b0Cell}>
-              <Text style={pdfStyles.b0Label}>Última generación</Text>
-              <Text style={pdfStyles.b0Value}>{fmtDate(generadoEn)}</Text>
-            </View>
-            {aprobadoEn && (
-              <View style={pdfStyles.b0Cell}>
-                <Text style={pdfStyles.b0Label}>Fecha de aprobación</Text>
-                <Text style={pdfStyles.b0Value}>{fmtDate(aprobadoEn)}</Text>
-              </View>
-            )}
-          </View>
-          <View style={pdfStyles.b0Grid}>
-            {ocupanteNombre && (
-              <View style={pdfStyles.b0Cell}>
-                <Text style={pdfStyles.b0Label}>Elaborado por</Text>
-                <Text style={pdfStyles.b0Value}>{ocupanteNombre}</Text>
-              </View>
-            )}
-            {aprobadoPorNombre && (
-              <View style={pdfStyles.b0Cell}>
-                <Text style={pdfStyles.b0Label}>Aprobado por</Text>
-                <Text style={pdfStyles.b0Value}>{aprobadoPorNombre}</Text>
-              </View>
-            )}
-          </View>
         </View>
 
         {/* B1 — Identificación del puesto */}
@@ -168,29 +160,10 @@ function ManualPDF({ funcion, manual, historial = [] }) {
         {/* B2–B6 */}
         {bloques.map(({ key, nombre, texto }) => (
           <View key={key} style={pdfStyles.bloque}>
-            <Text style={pdfStyles.bloqueTitle}>{nombre}</Text>
-            <Text style={pdfStyles.bloqueText}>{texto}</Text>
+            <Text style={pdfStyles.bloqueTitle} wrap={false}>{nombre}</Text>
+            <Text style={pdfStyles.bloqueText} wrap={true}>{texto}</Text>
           </View>
         ))}
-
-        {/* B9 — Historial de versiones */}
-        {historial.length > 0 && (
-          <View style={pdfStyles.bloque}>
-            <Text style={pdfStyles.bloqueTitle}>Historial de versiones</Text>
-            <View style={pdfStyles.tableHeader}>
-              <Text style={[pdfStyles.tableHeaderCell, { flex: 1 }]}>Versión</Text>
-              <Text style={[pdfStyles.tableHeaderCell, { flex: 2.5 }]}>Fecha</Text>
-              <Text style={[pdfStyles.tableHeaderCell, { flex: 1.5 }]}>Estado</Text>
-            </View>
-            {historial.map((h, i) => (
-              <View key={h.id} style={[pdfStyles.tableRow, i % 2 !== 0 && pdfStyles.tableRowAlt]}>
-                <Text style={[pdfStyles.tableCell, { flex: 1 }]}>{h.version}</Text>
-                <Text style={[pdfStyles.tableCell, { flex: 2.5 }]}>{fmtDate(h.generadoEn || h.createdAt)}</Text>
-                <Text style={[pdfStyles.tableCell, { flex: 1.5 }]}>{ESTADO_PDF[h.estado] || h.estado}</Text>
-              </View>
-            ))}
-          </View>
-        )}
 
         {/* Firma digital — solo en manuales vigentes */}
         {estado === 'vigente' && aprobadoEn && (
@@ -214,11 +187,30 @@ function ManualPDF({ funcion, manual, historial = [] }) {
           </View>
         )}
 
-        <View style={pdfStyles.footer} fixed>
-          <Text>Registro de Experiencia y Memoria Institucional (REMI) · Don Emilio</Text>
-          <Text render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
-        </View>
+        <PageFooter />
       </Page>
+
+      {/* ── Historial de versiones — última página aparte ── */}
+      {historial.length > 0 && (
+        <Page size="A4" style={pdfStyles.page}>
+          <View style={pdfStyles.bloque}>
+            <Text style={pdfStyles.bloqueTitle}>Historial de versiones</Text>
+            <View style={pdfStyles.tableHeader}>
+              <Text style={[pdfStyles.tableHeaderCell, { flex: 1 }]}>Versión</Text>
+              <Text style={[pdfStyles.tableHeaderCell, { flex: 2.5 }]}>Fecha</Text>
+              <Text style={[pdfStyles.tableHeaderCell, { flex: 1.5 }]}>Estado</Text>
+            </View>
+            {historial.map((h, i) => (
+              <View key={h.id} style={[pdfStyles.tableRow, i % 2 !== 0 && pdfStyles.tableRowAlt]}>
+                <Text style={[pdfStyles.tableCell, { flex: 1 }]}>{h.version}</Text>
+                <Text style={[pdfStyles.tableCell, { flex: 2.5 }]}>{fmtDate(h.generadoEn || h.createdAt)}</Text>
+                <Text style={[pdfStyles.tableCell, { flex: 1.5 }]}>{ESTADO_PDF[h.estado] || h.estado}</Text>
+              </View>
+            ))}
+          </View>
+          <PageFooter />
+        </Page>
+      )}
     </Document>
   )
 }
