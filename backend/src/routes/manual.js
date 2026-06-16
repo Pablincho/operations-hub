@@ -37,7 +37,7 @@ router.get('/pendientes', requireAdmin, async (req, res) => {
     // Fetch the most recent obsoleto version for each pending manual (for diff view)
     const data = await Promise.all(manuales.map(async m => {
       const anterior = await Manual.findOne({
-        where: { usuarioId: m.usuarioId, funcion: m.funcion, estado: 'obsoleto' },
+        where: { organizacionId: req.user.organizacionId, funcion: m.funcion, estado: 'obsoleto' },
         order: [['createdAt', 'DESC']],
         attributes: ['id', 'version', 'contenido']
       });
@@ -54,34 +54,45 @@ router.get('/pendientes', requireAdmin, async (req, res) => {
   }
 });
 
-// GET current manual (latest non-obsoleto)
+// GET current manual (latest non-obsoleto) — manual is per function (org-wide)
 router.get('/:funcion', async (req, res) => {
   try {
     const { funcion } = req.params;
     const manual = await Manual.findOne({
-      where: { usuarioId: req.user.id, funcion, estado: { [Op.ne]: 'obsoleto' } },
+      where: { organizacionId: req.user.organizacionId, funcion, estado: { [Op.ne]: 'obsoleto' } },
       order: [['createdAt', 'DESC']]
     });
-    if (!manual) return res.json({ success: true, data: null });
+
+    // Determine if current user is the primary occupant for this function
+    // Primary = user who created the earliest KnowledgeEntry for this function in the org
+    const earliestEntry = await KnowledgeEntry.findOne({
+      where: { organizacionId: req.user.organizacionId, funcion, categoria: 'checkin' },
+      order: [['createdAt', 'ASC']],
+      attributes: ['usuarioId']
+    });
+    const isPrimary = !earliestEntry || earliestEntry.usuarioId === req.user.id;
+
+    if (!manual) return res.json({ success: true, data: null, isPrimary });
 
     const data = manual.toJSON();
-    data.ocupanteNombre = req.user.nombre;
+    const ocupante = await Usuario.findByPk(manual.usuarioId, { attributes: ['nombre'] });
+    data.ocupanteNombre = ocupante?.nombre || req.user.nombre;
     if (manual.aprobadoPor) {
       const aprobador = await Usuario.findByPk(manual.aprobadoPor, { attributes: ['nombre'] });
       data.aprobadoPorNombre = aprobador?.nombre || null;
     }
-    res.json({ success: true, data });
+    res.json({ success: true, data, isPrimary });
   } catch {
     res.status(500).json({ success: false, error: 'Error interno' });
   }
 });
 
-// GET version history
+// GET version history — per function (org-wide)
 router.get('/:funcion/historial', async (req, res) => {
   try {
     const { funcion } = req.params;
     const historial = await Manual.findAll({
-      where: { usuarioId: req.user.id, funcion },
+      where: { organizacionId: req.user.organizacionId, funcion },
       order: [['createdAt', 'DESC']],
       attributes: ['id', 'version', 'estado', 'generadoEn', 'aprobadoEn', 'createdAt']
     });
@@ -101,9 +112,19 @@ router.post('/:funcion/generar', async (req, res) => {
       return res.status(403).json({ success: false, error: 'No tenés esa función asignada' });
     }
 
-    // Find current active (non-obsoleto) manual to determine next version and for incremental generation
+    // Only the primary occupant (first with entries) can generate the manual
+    const earliestEntry = await KnowledgeEntry.findOne({
+      where: { organizacionId: req.user.organizacionId, funcion, categoria: 'checkin' },
+      order: [['createdAt', 'ASC']],
+      attributes: ['usuarioId']
+    });
+    if (earliestEntry && earliestEntry.usuarioId !== req.user.id) {
+      return res.status(403).json({ success: false, error: 'Solo el ocupante principal puede generar el manual de este puesto.' });
+    }
+
+    // Find current active (non-obsoleto) manual — per function (org-wide)
     const current = await Manual.findOne({
-      where: { usuarioId: req.user.id, funcion, estado: { [Op.ne]: 'obsoleto' } },
+      where: { organizacionId: req.user.organizacionId, funcion, estado: { [Op.ne]: 'obsoleto' } },
       order: [['createdAt', 'DESC']]
     });
 
@@ -118,7 +139,6 @@ router.post('/:funcion/generar', async (req, res) => {
         where: {
           funcion,
           organizacionId: req.user.organizacionId,
-          usuarioId: req.user.id,
           categoria: 'checkin',
           [Op.or]: [
             { createdAt: { [Op.gt]: current.generadoEn } },
@@ -143,7 +163,6 @@ router.post('/:funcion/generar', async (req, res) => {
     }
 
     // Calculate version for new draft
-    // vigente → increment (minor if <3 blocks changed, major if ≥3); devuelto borrador → preserve version; no prior → Borrador
     let newVersion;
     if (current?.estado === 'vigente') {
       const changedBlocks = Object.keys(contenido).filter(
@@ -159,10 +178,10 @@ router.post('/:funcion/generar', async (req, res) => {
     // Archive current borrador or vigente → obsoleto
     if (current) await current.update({ estado: 'obsoleto' });
 
-    // Also archive any other stale borradores
+    // Also archive any other stale borradores for this function
     await Manual.update(
       { estado: 'obsoleto' },
-      { where: { usuarioId: req.user.id, funcion, estado: 'borrador' } }
+      { where: { organizacionId: req.user.organizacionId, funcion, estado: 'borrador' } }
     );
 
     const manual = await Manual.create({
@@ -189,10 +208,15 @@ router.post('/:funcion/enviar', async (req, res) => {
     const { nota } = req.body;
 
     const manual = await Manual.findOne({
-      where: { usuarioId: req.user.id, funcion, estado: 'borrador' }
+      where: { organizacionId: req.user.organizacionId, funcion, estado: 'borrador' }
     });
     if (!manual) {
       return res.status(404).json({ success: false, error: 'No hay borrador para enviar. Generá el manual primero.' });
+    }
+
+    // Only the primary occupant (manual owner) can send
+    if (manual.usuarioId !== req.user.id) {
+      return res.status(403).json({ success: false, error: 'Solo el ocupante principal puede enviar este manual.' });
     }
 
     const usuario = await Usuario.findByPk(req.user.id);
@@ -220,7 +244,7 @@ router.post('/:funcion/enviar', async (req, res) => {
 
     // Compare against the most recent obsoleto version to auto-approve unchanged blocks
     const anterior = await Manual.findOne({
-      where: { usuarioId: req.user.id, funcion, estado: 'obsoleto' },
+      where: { organizacionId: req.user.organizacionId, funcion, estado: 'obsoleto' },
       order: [['createdAt', 'DESC']],
       attributes: ['contenido']
     });

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { Sequelize } from 'sequelize';
+import { Sequelize, Op } from 'sequelize';
 import { verifyJWT, requireAdmin } from '../auth.js';
 import { CheckinSession, KnowledgeEntry } from '../models/index.js';
 import { generarPreguntas, INITIAL_QUESTIONS } from '../services/checkinService.js';
@@ -16,18 +16,36 @@ function todayBA() {
 router.get('/hoy', async (req, res) => {
   try {
     const today = todayBA();
+    const userFunciones = req.user.funciones || [];
+
+    // Determine primary occupant for each assigned function
+    // Primary = user with the earliest KnowledgeEntry for that function in the org
+    const primaryStatusMap = {};
+    if (userFunciones.length > 0) {
+      await Promise.all(userFunciones.map(async (fn) => {
+        const earliest = await KnowledgeEntry.findOne({
+          where: { organizacionId: req.user.organizacionId, funcion: fn, categoria: 'checkin' },
+          order: [['createdAt', 'ASC']],
+          attributes: ['usuarioId']
+        });
+        // If no entries yet, this user is (or would be) primary
+        primaryStatusMap[fn] = !earliest || earliest.usuarioId === req.user.id;
+      }));
+    }
+
     const [todaySessions, allCompleted, entryRows] = await Promise.all([
       CheckinSession.findAll({ where: { usuarioId: req.user.id, fecha: today } }),
       CheckinSession.findAll({ where: { usuarioId: req.user.id, completado: true } }),
       KnowledgeEntry.findAll({
-        where: { usuarioId: req.user.id, organizacionId: req.user.organizacionId, categoria: 'checkin' },
+        where: { organizacionId: req.user.organizacionId, categoria: 'checkin',
+          ...(userFunciones.length > 0 ? { funcion: { [Op.in]: userFunciones } } : {}) },
         attributes: ['funcion', [Sequelize.fn('COUNT', Sequelize.col('id')), 'count']],
         group: ['funcion'],
         raw: true
       })
     ]);
 
-    // Build onboarding status: a function has onboarding complete if it has ≥1 completed session with 10 questions
+    // Build onboarding status based on this user's sessions
     const onboardingStatus = {};
     const dailyCounts = {};
     for (const s of allCompleted) {
@@ -43,7 +61,7 @@ router.get('/hoy', async (req, res) => {
       entryCounts[row.funcion] = parseInt(row.count, 10);
     }
 
-    res.json({ success: true, data: todaySessions, onboardingStatus, dailyCounts, entryCounts });
+    res.json({ success: true, data: todaySessions, onboardingStatus, dailyCounts, entryCounts, primaryStatusMap });
   } catch {
     res.status(500).json({ success: false, error: 'Error interno' });
   }
@@ -60,8 +78,22 @@ router.post('/iniciar', async (req, res) => {
     }
 
     const funciones = req.user.funciones || [];
-    if (req.user.rol !== 'superadmin' && !funciones.includes(funcion)) {
+    if (!funciones.includes(funcion)) {
       return res.status(403).json({ success: false, error: 'No tenés esa función asignada' });
+    }
+
+    // Only the primary occupant can do check-ins
+    const earliestEntry = await KnowledgeEntry.findOne({
+      where: { organizacionId: req.user.organizacionId, funcion, categoria: 'checkin' },
+      order: [['createdAt', 'ASC']],
+      attributes: ['usuarioId']
+    });
+    if (earliestEntry && earliestEntry.usuarioId !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        error: 'Solo el ocupante principal puede completar el check-in de este puesto.',
+        isReadOnly: true
+      });
     }
 
     const today = todayBA();
@@ -91,7 +123,24 @@ router.post('/iniciar', async (req, res) => {
       }
       // Generate 3 AI-adapted questions tagged by bloque
       const prevAnswers = prevSessions.flatMap(s => s.preguntas.filter(p => p.respondida));
-      const questionObjs = await generarPreguntas(funcion, prevAnswers);
+
+      // Fetch non-sensitive entries from other functions that mention this function
+      const crossAreaRefs = await KnowledgeEntry.findAll({
+        where: {
+          organizacionId: req.user.organizacionId,
+          funcion: { [Op.ne]: funcion },
+          categoria: 'checkin',
+          esSensible: false,
+          [Op.or]: [
+            { titulo: { [Op.iLike]: `%${funcion}%` } },
+            { contenido: { [Op.iLike]: `%${funcion}%` } }
+          ]
+        },
+        attributes: ['funcion', 'titulo', 'contenido'],
+        limit: 10
+      });
+
+      const questionObjs = await generarPreguntas(funcion, prevAnswers, crossAreaRefs.map(e => e.toJSON()));
       preguntas = questionObjs.map(q => ({
         pregunta: q.pregunta || q,
         bloque: q.bloque || null,

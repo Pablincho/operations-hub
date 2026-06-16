@@ -3,6 +3,7 @@ import { pdf } from '@react-pdf/renderer'
 import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer'
 import api from '@/services/api'
 import { useAuth } from '@/contexts/AuthContext'
+import { useNotifications } from '@/contexts/NotificationsContext'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent } from '@/components/ui/card'
@@ -216,7 +217,7 @@ function ManualPDF({ funcion, manual, historial = [] }) {
 }
 
 // ─── Check-in block ───────────────────────────────────────────────────────────
-function CheckinBlock({ funcion, color, todaySession, onboardingDone, diasCompletos, onComplete }) {
+function CheckinBlock({ funcion, color, todaySession, onboardingDone, diasCompletos, onComplete, isPrimary }) {
   const [session, setSession] = useState(todaySession)
   const [answers, setAnswers] = useState([])
   const [loading, setLoading] = useState(false)
@@ -229,8 +230,9 @@ function CheckinBlock({ funcion, color, todaySession, onboardingDone, diasComple
     }
   }, [todaySession])
 
-  // Hidden once completed today
+  // Hidden once completed today or when user is a read-only secondary occupant
   if (session?.completado) return null
+  if (isPrimary === false) return null
 
   const isOnboarding = session ? session.preguntas.length === 10 : !onboardingDone
   const PhaseIcon = isOnboarding ? BookOpen : CalendarCheck
@@ -337,7 +339,7 @@ function CheckinBlock({ funcion, color, todaySession, onboardingDone, diasComple
 }
 
 // ─── Manual section ───────────────────────────────────────────────────────────
-function ManualSection({ funcion, color }) {
+function ManualSection({ funcion, color, onManualEstado, isPrimary }) {
   const [manual, setManual] = useState(null)
   const [historial, setHistorial] = useState([])
   const [loading, setLoading] = useState(true)
@@ -350,6 +352,7 @@ function ManualSection({ funcion, color }) {
   const [notaEnvio, setNotaEnvio] = useState('')
 
   useEffect(() => { loadManual() }, [funcion])
+  useEffect(() => { onManualEstado?.(manual?.estado ?? null) }, [manual])
 
   async function loadManual() {
     setLoading(true)
@@ -427,7 +430,10 @@ function ManualSection({ funcion, color }) {
           )}
         </div>
         <div className="flex gap-2 flex-wrap">
-          {manual?.estado !== 'en_revision' && (
+          {isPrimary === false && (
+            <span className="text-xs text-muted-foreground px-2 py-1 bg-muted rounded-lg">Solo lectura</span>
+          )}
+          {isPrimary !== false && manual?.estado !== 'en_revision' && (
             <Button size="sm" onClick={generarOActualizar} disabled={generating} className="gap-1 text-xs h-7" style={{ background: color, color: 'white' }}>
               {generating ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
               {manual ? 'Actualizar' : 'Generar manual'}
@@ -439,7 +445,7 @@ function ManualSection({ funcion, color }) {
                 {exporting ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
                 PDF
               </Button>
-              {manual.estado === 'borrador' && (() => {
+              {isPrimary !== false && manual.estado === 'borrador' && (() => {
                 const tieneDevueltos = manual.bloquesEstado &&
                   Object.values(manual.bloquesEstado).some(b => b.estado === 'devuelto')
                 return tieneDevueltos ? (
@@ -588,7 +594,7 @@ function persistEditedIds(ids) {
   try { localStorage.setItem(EDITED_KEY, JSON.stringify([...ids])) } catch {}
 }
 
-function EntradasSection({ funcion, color, refreshTrigger }) {
+function EntradasSection({ funcion, color, refreshTrigger, manualEstado, isPrimary }) {
   const [entries, setEntries] = useState([])
   const [loading, setLoading] = useState(false)
   const [expanded, setExpanded] = useState(false)
@@ -647,15 +653,20 @@ function EntradasSection({ funcion, color, refreshTrigger }) {
       {expanded && !loading && (
         <div className="mt-3 flex flex-col gap-2">
           {entries.map(entry => {
-            const isEdited = editedIds.has(entry.id)
-            const isAutoSensible = autoSensibleIds.has(entry.id)
-            const isSensible = entry.esSensible || entry._bloqueado
+            const isEdited = editedIds.has(entry.id) && manualEstado === 'borrador'
+            const isAutoSensible = autoSensibleIds.has(entry.id) && manualEstado === 'borrador'
+            const isBlocked = entry._bloqueado === true
             return (
               <div
                 key={entry.id}
                 className={`rounded-lg p-3 ${isEdited ? 'ring-2 ring-amber-300 bg-amber-50' : 'bg-[#f9faf9]'}`}
               >
-                <p className="text-xs font-semibold mb-1" style={{ color }}>{entry.titulo}</p>
+                <p className="text-xs font-semibold mb-1 flex items-center gap-1" style={{ color }}>
+                  {entry.titulo}
+                  {entry.esSensible && !isBlocked && (
+                    <span className="text-xs font-normal text-amber-600 ml-1">🔒</span>
+                  )}
+                </p>
                 {editingId === entry.id ? (
                   <div>
                     <Textarea value={editContent} onChange={e => setEditContent(e.target.value)} rows={3} autoFocus className="text-sm" />
@@ -670,11 +681,11 @@ function EntradasSection({ funcion, color, refreshTrigger }) {
                 ) : (
                   <div className="flex items-start gap-2">
                     <p className="text-sm flex-1 leading-relaxed">
-                      {isSensible
-                        ? <span className="text-muted-foreground italic">🔒 Información sensible — consultá el asistente</span>
+                      {isBlocked
+                        ? <span className="text-muted-foreground italic">🔒 Información sensible restringida</span>
                         : entry.contenido}
                     </p>
-                    {!isSensible && (
+                    {!isBlocked && isPrimary !== false && (
                       <button onClick={() => { setEditingId(entry.id); setEditContent(entry.contenido) }} className="p-1 text-muted-foreground hover:text-foreground shrink-0 transition-colors">
                         <Pencil size={13} />
                       </button>
@@ -682,8 +693,8 @@ function EntradasSection({ funcion, color, refreshTrigger }) {
                   </div>
                 )}
                 {isAutoSensible && (
-                  <p className="text-xs text-amber-700 mt-1.5">
-                    🔒 Marcada automáticamente como sensible
+                  <p className="text-xs text-amber-600 mt-1.5">
+                    Marcada automáticamente como sensible
                   </p>
                 )}
               </div>
@@ -698,6 +709,7 @@ function EntradasSection({ funcion, color, refreshTrigger }) {
 // ─── Mi Manual page ───────────────────────────────────────────────────────────
 export default function MiManual() {
   const { user, refreshUser } = useAuth()
+  const { refresh: refreshNotifications } = useNotifications()
   const funciones = user?.funciones || []
   const [selectedFn, setSelectedFn] = useState('')
   const [initializing, setInitializing] = useState(true)
@@ -706,6 +718,8 @@ export default function MiManual() {
   const [dailyCounts, setDailyCounts] = useState({})
   const [entryCounts, setEntryCounts] = useState({})
   const [refreshEntries, setRefreshEntries] = useState(0)
+  const [manualEstados, setManualEstados] = useState({})
+  const [primaryStatusMap, setPrimaryStatusMap] = useState({})
 
   useEffect(() => { load() }, [])
 
@@ -719,6 +733,7 @@ export default function MiManual() {
       setOnboardingStatus(res.data.onboardingStatus || {})
       setDailyCounts(res.data.dailyCounts || {})
       setEntryCounts(res.data.entryCounts || {})
+      setPrimaryStatusMap(res.data.primaryStatusMap || {})
     } catch { /* ignore */ }
     finally { setInitializing(false) }
   }
@@ -728,12 +743,15 @@ export default function MiManual() {
   }
 
   function checkinPendiente(fn) {
+    if (primaryStatusMap[fn] === false) return false
+    if ((dailyCounts[fn] || 0) >= 20) return false
     return !sessionForFuncion(fn)?.completado
   }
 
   function handleCheckinComplete() {
     load()
     setRefreshEntries(n => n + 1)
+    refreshNotifications()
   }
 
   if (initializing) {
@@ -797,7 +815,7 @@ export default function MiManual() {
 
       <Card>
         <CardContent className="p-5">
-          {/* 1 — Check-in block (disappears when done) */}
+          {/* 1 — Check-in block (hidden when done or user is secondary) */}
           <CheckinBlock
             key={selectedFn}
             funcion={selectedFn}
@@ -806,14 +824,26 @@ export default function MiManual() {
             onboardingDone={!!onboardingStatus[selectedFn]}
             diasCompletos={dailyCounts[selectedFn] || 0}
             onComplete={handleCheckinComplete}
+            isPrimary={primaryStatusMap[selectedFn] ?? true}
           />
 
           {/* 2 — Manual */}
-          <ManualSection funcion={selectedFn} color={color} />
+          <ManualSection
+            funcion={selectedFn}
+            color={color}
+            onManualEstado={estado => setManualEstados(prev => ({ ...prev, [selectedFn]: estado }))}
+            isPrimary={primaryStatusMap[selectedFn] ?? true}
+          />
 
           {/* 3 — Previous answers */}
-          {onboardingStatus[selectedFn] && (
-            <EntradasSection funcion={selectedFn} color={color} refreshTrigger={refreshEntries} />
+          {(onboardingStatus[selectedFn] || primaryStatusMap[selectedFn] === false) && (
+            <EntradasSection
+              funcion={selectedFn}
+              color={color}
+              refreshTrigger={refreshEntries}
+              manualEstado={manualEstados[selectedFn]}
+              isPrimary={primaryStatusMap[selectedFn] ?? true}
+            />
           )}
         </CardContent>
       </Card>

@@ -270,7 +270,7 @@ function bloqueConMenosCobertura(prevAnswers) {
   return bloques.reduce((min, b) => counts[b] < counts[min] ? b : min, bloques[0]);
 }
 
-export async function generarPreguntas(funcion, prevAnswers = []) {
+export async function generarPreguntas(funcion, prevAnswers = [], crossAreaRefs = []) {
   const answeredQs = new Set(prevAnswers.map(p => p.pregunta));
   const base = BASE_QUESTIONS[funcion] || [];
   const fallback = base.filter(q => !answeredQs.has(q.pregunta)).slice(0, 3);
@@ -278,7 +278,7 @@ export async function generarPreguntas(funcion, prevAnswers = []) {
   const bloqueObjetivo = bloqueConMenosCobertura(prevAnswers);
 
   try {
-    const questions = await generarPreguntasIA(funcion, prevAnswers, bloqueObjetivo);
+    const questions = await generarPreguntasIA(funcion, prevAnswers, bloqueObjetivo, crossAreaRefs);
     if (Array.isArray(questions) && questions.length === 3) {
       return questions; // [{pregunta, bloque}]
     }

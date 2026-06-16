@@ -16,12 +16,13 @@ export function NotificationsProvider({ children }) {
   const refresh = useCallback(async () => {
     if (!user) return
 
-    // Mi Manual: check-in pendiente en alguna función
+    // Mi Manual: check-in pendiente en alguna función donde el usuario es ocupante principal
     try {
       const res = await api.get('/checkin/hoy')
-      const { data: sessions = [], dailyCounts = {} } = res.data
+      const { data: sessions = [], dailyCounts = {}, primaryStatusMap = {} } = res.data
       const funciones = user.funciones || []
       const pendiente = funciones.some(fn => {
+        if (primaryStatusMap[fn] === false) return false  // secondary — no puede hacer check-in
         const sesionHoy = sessions.find(s => s.funcion === fn)
         return !sesionHoy?.completado && (dailyCounts[fn] || 0) < 20
       })

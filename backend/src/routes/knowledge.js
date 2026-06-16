@@ -14,7 +14,7 @@ router.use(verifyJWT);
 function canSeeSensitive(user, funcion) {
   if (user.rol === 'superadmin') return true;
   if (user.rol === 'admin') return false;
-  return user.funciones?.includes(funcion);
+  return user.funciones?.includes(funcion) ?? false;
 }
 
 // GET entries
@@ -102,8 +102,10 @@ router.put('/:id', async (req, res) => {
       return res.status(403).json({ success: false, error: 'No tenés acceso a esa función' });
     }
 
-    if (entry.esSensible && req.user.rol !== 'superadmin') {
-      return res.status(403).json({ success: false, error: 'Solo superadmin puede modificar entradas sensibles' });
+    const puedeEditarSensible = req.user.rol === 'superadmin' ||
+      (req.user.rol === 'operativo' && req.user.funciones?.includes(entry.funcion));
+    if (entry.esSensible && !puedeEditarSensible) {
+      return res.status(403).json({ success: false, error: 'No tenés permiso para modificar esta entrada sensible' });
     }
 
     const { titulo, contenido, categoria, esSensible } = req.body;

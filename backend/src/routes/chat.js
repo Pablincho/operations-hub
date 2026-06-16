@@ -146,9 +146,10 @@ router.post('/mensaje', async (req, res) => {
     });
 
     // Fetch vigente manuals as primary context
-    const isOperativo = req.user.rol === 'operativo';
-    const manualesWhere = isOperativo
-      ? { usuarioId: req.user.id, estado: 'vigente' }
+    // Manual is per function (org-wide), filtered by user's assigned functions if any
+    const userFunciones = req.user.funciones || [];
+    const manualesWhere = userFunciones.length > 0
+      ? { organizacionId: req.user.organizacionId, funcion: { [Op.in]: userFunciones }, estado: 'vigente' }
       : { organizacionId: req.user.organizacionId, estado: 'vigente' };
 
     const manuales = await Manual.findAll({
@@ -156,20 +157,32 @@ router.post('/mensaje', async (req, res) => {
       attributes: ['funcion', 'version', 'contenido']
     });
 
-    // Fallback: for functions with no vigente manual, use raw KnowledgeEntries
+    // Fallback entries: all org entries for assigned functions without a vigente manual
     const funcionesConManual = new Set(manuales.map(m => m.funcion));
-    const fnsParaEntries = isOperativo
-      ? (req.user.funciones || []).filter(f => !funcionesConManual.has(f))
-      : [];
+    const fnsParaEntries = userFunciones.filter(f => !funcionesConManual.has(f));
 
     let fallbackEntries = [];
-    let sensibleEntries = [];
     if (fnsParaEntries.length > 0) {
-      const todasEntries = await KnowledgeEntry.findAll({
-        where: { usuarioId: req.user.id, funcion: { [Op.in]: fnsParaEntries }, categoria: 'checkin' }
+      fallbackEntries = await KnowledgeEntry.findAll({
+        where: {
+          organizacionId: req.user.organizacionId,
+          funcion: { [Op.in]: fnsParaEntries },
+          categoria: 'checkin',
+          esSensible: false
+        }
       });
-      fallbackEntries = todasEntries.filter(e => !e.esSensible);
-      sensibleEntries = todasEntries.filter(e => e.esSensible);
+    }
+
+    // Sensitive entries: org-wide for assigned functions (superadmin sees all, operativo sees own funciones)
+    let sensibleEntries = [];
+    if (userFunciones.length > 0) {
+      sensibleEntries = await KnowledgeEntry.findAll({
+        where: {
+          organizacionId: req.user.organizacionId,
+          funcion: { [Op.in]: userFunciones },
+          esSensible: true
+        }
+      });
     }
 
     const { reply, usedSensitive } = await llamarAsistente(req.user, manuales, fallbackEntries, sensibleEntries, history, mensaje.trim());

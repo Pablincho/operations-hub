@@ -44,9 +44,10 @@ export async function llamarAsistente(user, manuales, fallbackEntries, sensibleE
       fallbackEntries.map(e => `[${e.funcion}] ${e.titulo}:\n${e.contenido}`).join('\n\n')
     : '';
 
-  // Sensitive entries: included in context but response won't be persisted
+  // Sensitive entries: included in context, authorized to show, but response won't be persisted
   const sensibleText = sensibleEntries.length
-    ? '\n\n--- Información de acceso restringido (no citar textualmente) ---\n\n' +
+    ? '\n\n--- Información sensible (credenciales y datos de acceso) ---\n' +
+      'El usuario que consulta tiene autorización sobre estos datos y esta respuesta no se almacena. Si los solicita, mostrá el valor exacto tal como está registrado.\n\n' +
       sensibleEntries.map(e => `[${e.funcion}] ${e.titulo}:\n${e.contenido}`).join('\n\n')
     : '';
 
@@ -62,10 +63,10 @@ ${contexto}
 REGLAS ESTRICTAS:
 - Respondé EXCLUSIVAMENTE usando la base de conocimiento provista arriba.
 - Si la respuesta no está en la base de conocimiento, respondé: "Esa información no está registrada todavía en el sistema."
-- No inventes datos, especialmente bancarios, contraseñas, usuarios o accesos.
+- No inventes datos. Si un dato (bancario, contraseña, usuario, acceso) figura en la base de conocimiento, proporcionalo cuando te lo pidan; si no figura, no lo inventes.
 - Sistema contable de la empresa: Albor.
 - Si te preguntan por una función que no corresponde a este puesto, indicá que le corresponde a otro responsable.
-- Usá siempre voz impersonal y tono institucional: "se debe", "corresponde", "el procedimiento indica", "está establecido que". Nunca uses primera persona ("yo") ni segunda persona directa ("vos", "te"). Escribí como un manual o reglamento interno.
+- Usá siempre voz impersonal y tono institucional: "se debe", "corresponde", "el procedimiento indica", "está establecido que". NUNCA uses primera persona ("yo", "utilizo", "tengo", "ingreso") ni segunda persona directa ("vos", "te"). Aunque la base de conocimiento esté escrita en primera persona, reformulá siempre en tercera persona o voz impersonal. Escribí como un manual o reglamento interno.
 - Separación numérica en español: punto para miles, coma para decimales (ej: 1.000 pesos, 10,5%).`;
 
   // Build messages array from history, excluding the last message (current user message)
@@ -86,7 +87,7 @@ REGLAS ESTRICTAS:
   return { reply: response.choices[0].message.content, usedSensitive };
 }
 
-export async function generarPreguntasIA(funcion, prevAnswers, bloqueObjetivo = 'B4') {
+export async function generarPreguntasIA(funcion, prevAnswers, bloqueObjetivo = 'B4', crossAreaRefs = []) {
   const answeredCount = prevAnswers.length;
   const prevSummary = prevAnswers
     .slice(-5)
@@ -95,6 +96,12 @@ export async function generarPreguntasIA(funcion, prevAnswers, bloqueObjetivo = 
 
   const nombreBloque = BLOQUE_NOMBRES[bloqueObjetivo] || bloqueObjetivo;
 
+  const crossAreaSection = crossAreaRefs.length > 0
+    ? `\n\nOtras áreas mencionan a ${funcion} en sus respuestas documentadas:
+${crossAreaRefs.map(r => `[${r.funcion}] "${r.titulo}": "${(r.contenido || '').slice(0, 150)}"`).join('\n')}
+Si alguna de estas menciones revela una interacción con ${funcion} que aún no quedó documentada en este puesto, podés incluir una pregunta que confirme o amplíe ese proceso desde la perspectiva de ${funcion}. De lo contrario, ignoralas.`
+    : '';
+
   const prompt = `Sos un experto en procesos administrativos de empresas agropecuarias argentinas.
 Tu tarea es generar exactamente 3 preguntas para documentar el puesto de "${funcion}" en Don Emilio.
 
@@ -102,7 +109,7 @@ Ya se documentaron ${answeredCount} respuestas sobre este puesto.
 ${prevSummary ? `Últimas respuestas: ${prevSummary}` : ''}
 
 Enfocate en el bloque "${nombreBloque}" del manual de puesto.
-Generá 3 preguntas concretas y operativas que profundicen ese bloque.
+Generá 3 preguntas concretas y operativas que profundicen ese bloque.${crossAreaSection}
 Devolvé SOLO un JSON: {"questions":[{"pregunta":"...","bloque":"${bloqueObjetivo}"},{"pregunta":"...","bloque":"${bloqueObjetivo}"},{"pregunta":"...","bloque":"${bloqueObjetivo}"}]}`;
 
   const response = await getOpenAI().chat.completions.create({

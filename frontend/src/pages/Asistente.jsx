@@ -202,7 +202,7 @@ function exportConversation(messages, sessionName) {
 }
 
 export default function Asistente() {
-  const { user } = useAuth()
+  const { user, refreshUser } = useAuth()
   const [messages, setMessages] = useState([])
   const [sessionId, setSessionId] = useState(null)
   const [sessionName, setSessionName] = useState('')
@@ -220,6 +220,7 @@ export default function Asistente() {
   async function loadSession() {
     setInitializing(true)
     try {
+      await refreshUser()
       const res = await api.get('/chat/session')
       const { session, messages } = res.data.data
       setSessionId(session.id)
