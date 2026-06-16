@@ -22,7 +22,7 @@ export function CheckinSessionModel(sequelize) {
     preguntas: {
       type: DataTypes.JSONB,
       defaultValue: []
-      // array of { pregunta: string, respuesta: string, respondida: boolean }
+      // array of { pregunta: string, bloque: string|null, respuesta: string, respondida: boolean }
     },
     completado: {
       type: DataTypes.BOOLEAN,

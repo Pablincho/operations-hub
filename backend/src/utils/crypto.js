@@ -19,7 +19,7 @@ export function decrypt(stored) {
   const [ivHex, tagHex, dataHex] = stored.split(':')
   const dec = crypto.createDecipheriv(ALGO, getKey(), Buffer.from(ivHex, 'hex'))
   dec.setAuthTag(Buffer.from(tagHex, 'hex'))
-  return dec.update(Buffer.from(dataHex, 'hex')) + dec.final('utf8')
+  return Buffer.concat([dec.update(Buffer.from(dataHex, 'hex')), dec.final()]).toString('utf8')
 }
 
 export function isEncrypted(text) {

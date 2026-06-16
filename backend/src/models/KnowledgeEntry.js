@@ -57,7 +57,7 @@ export function KnowledgeEntryModel(sequelize) {
   KnowledgeEntry.addHook('afterFind', (result) => {
     const items = Array.isArray(result) ? result : result ? [result] : []
     for (const item of items) {
-      if (item.esSensible && item.contenido && isEncrypted(item.contenido)) {
+      if (item.contenido && isEncrypted(item.contenido)) {
         item.contenido = decrypt(item.contenido)
       }
     }

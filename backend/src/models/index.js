@@ -56,3 +56,9 @@ ChatMessage.belongsTo(ChatSession, { foreignKey: 'chatSessionId' });
 
 Usuario.hasMany(Manual, { foreignKey: 'usuarioId' });
 Manual.belongsTo(Usuario, { foreignKey: 'usuarioId' });
+
+Organizacion.hasMany(Manual, { foreignKey: 'organizacionId' });
+Manual.belongsTo(Organizacion, { foreignKey: 'organizacionId' });
+
+Usuario.belongsTo(Usuario, { as: 'supervisor', foreignKey: 'supervisorId' });
+Usuario.hasMany(Usuario, { as: 'supervisees', foreignKey: 'supervisorId' });

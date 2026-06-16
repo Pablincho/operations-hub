@@ -83,9 +83,9 @@ async function generarBloque(funcion, nombreBloque, existingText, newQas, allQas
   return actualizarBloqueMinimo(funcion, nombreBloque, existingText, newQas);
 }
 
-export async function generarManual(funcion, organizacionId, usuarioId, KnowledgeEntry, currentManual) {
+export async function generarManual(funcion, organizacionId, KnowledgeEntry, currentManual) {
   const entries = await KnowledgeEntry.findAll({
-    where: { funcion, organizacionId, usuarioId, categoria: 'checkin', esSensible: false },
+    where: { funcion, organizacionId, categoria: 'checkin', esSensible: false },
     attributes: ['titulo', 'contenido', 'bloque', 'createdAt', 'updatedAt'],
     order: [['createdAt', 'ASC']]
   });

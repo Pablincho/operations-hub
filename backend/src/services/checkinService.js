@@ -1,15 +1,5 @@
 import { generarPreguntasIA } from './openaiService.js';
 
-export const FUNCIONES = [
-  'Tesorería',
-  'Administración y Finanzas',
-  'Operaciones Agropecuarias',
-  'Impositivo',
-  'Administrativo Junior',
-  'RRHH',
-  'Administrativo El Coro'
-];
-
 // B2 = Funciones y responsabilidades
 // B3 = Perfil del puesto
 // B4 = Procesos y procedimientos

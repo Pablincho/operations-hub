@@ -154,7 +154,7 @@ router.post('/:funcion/generar', async (req, res) => {
       }
     }
 
-    const contenido = await generarManual(funcion, req.user.organizacionId, req.user.id, KnowledgeEntry, current);
+    const contenido = await generarManual(funcion, req.user.organizacionId, KnowledgeEntry, current);
     if (!Object.keys(contenido).length) {
       return res.status(400).json({
         success: false,
