@@ -288,7 +288,7 @@ function ManualCard({ manual: initialManual, onResolved }) {
 
       {/* Devolver todo dialog */}
       <Dialog open={showDevolverTodo} onOpenChange={setShowDevolverTodo}>
-        <DialogContent>
+        <DialogContent aria-describedby={undefined}>
           <DialogHeader><DialogTitle>Devolver manual con observaciones</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">
             El manual volverá a borrador. El ocupante recibirá tus observaciones y podrá corregir antes de reenviar.

@@ -9,6 +9,7 @@ import { CheckinSessionModel } from './CheckinSession.js';
 import { ChatSessionModel } from './ChatSession.js';
 import { ChatMessageModel } from './ChatMessage.js';
 import { ManualModel } from './Manual.js';
+import { BugReportModel } from './BugReport.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -34,6 +35,7 @@ export const CheckinSession = CheckinSessionModel(db);
 export const ChatSession = ChatSessionModel(db);
 export const ChatMessage = ChatMessageModel(db);
 export const Manual = ManualModel(db);
+export const BugReport = BugReportModel(db);
 
 // Associations
 Organizacion.hasMany(Usuario, { foreignKey: 'organizacionId' });
@@ -62,3 +64,8 @@ Manual.belongsTo(Organizacion, { foreignKey: 'organizacionId' });
 
 Usuario.belongsTo(Usuario, { as: 'supervisor', foreignKey: 'supervisorId' });
 Usuario.hasMany(Usuario, { as: 'supervisees', foreignKey: 'supervisorId' });
+
+Usuario.hasMany(BugReport, { foreignKey: 'usuarioId' });
+BugReport.belongsTo(Usuario, { foreignKey: 'usuarioId' });
+Organizacion.hasMany(BugReport, { foreignKey: 'organizacionId' });
+BugReport.belongsTo(Organizacion, { foreignKey: 'organizacionId' });

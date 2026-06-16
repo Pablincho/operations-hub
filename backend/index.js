@@ -8,6 +8,7 @@ import knowledgeRoutes from './src/routes/knowledge.js';
 import checkinRoutes from './src/routes/checkin.js';
 import chatRoutes from './src/routes/chat.js';
 import manualRoutes from './src/routes/manual.js';
+import bugsRoutes from './src/routes/bugs.js';
 import { initScheduler } from './src/scheduler.js';
 
 const app = express();
@@ -30,7 +31,7 @@ app.use(cors({
   },
   credentials: true
 }));
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '10mb' }));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/usuarios', usuariosRoutes);
@@ -38,6 +39,7 @@ app.use('/api/knowledge', knowledgeRoutes);
 app.use('/api/checkin', checkinRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/manual', manualRoutes);
+app.use('/api/bugs', bugsRoutes);
 
 app.get('/api/health', (_req, res) => res.json({ success: true, data: 'OK' }));
 

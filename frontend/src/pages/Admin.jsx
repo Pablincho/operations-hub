@@ -8,13 +8,17 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { FUNCIONES, FUNC_ICONS, FUNC_COLORS } from '@/lib/utils'
-import { Plus, UserCheck, UserX, Key, Trash2, CheckCircle2 } from 'lucide-react'
+import { Plus, UserCheck, UserX, Key, Trash2, CheckCircle2, Bug, ChevronDown, ChevronUp, CheckCheck, Trash, ZoomIn, ZoomOut, X } from 'lucide-react'
 
 export default function Admin() {
   const { user } = useAuth()
   const [users, setUsers] = useState([])
   const [progress, setProgress] = useState({})
   const [primaryOccupants, setPrimaryOccupants] = useState({})
+  const [bugs, setBugs] = useState([])
+  const [showBugs, setShowBugs] = useState(false)
+  const [lightboxImg, setLightboxImg] = useState(null)
+  const [zoomImg, setZoomImg] = useState(false)
   const [defaultUserPassword, setDefaultUserPassword] = useState('Bienvenido123')
   const [loading, setLoading] = useState(true)
   const [showNew, setShowNew] = useState(false)
@@ -28,14 +32,16 @@ export default function Admin() {
   async function load() {
     setLoading(true)
     try {
-      const [usersRes, progRes, defaultPwRes] = await Promise.all([
+      const [usersRes, progRes, defaultPwRes, bugsRes] = await Promise.all([
         api.get('/usuarios'),
         api.get('/checkin/progreso'),
-        api.get('/usuarios/default-password')
+        api.get('/usuarios/default-password'),
+        api.get('/bugs')
       ])
       setUsers(usersRes.data.data)
       setPrimaryOccupants(usersRes.data.meta?.primaryOccupants || {})
       setProgress(progRes.data.data)
+      setBugs(bugsRes.data.data || [])
       setDefaultUserPassword(defaultPwRes.data?.data?.defaultPassword || 'Bienvenido123')
     } catch {
       // ignore
@@ -116,6 +122,21 @@ export default function Admin() {
     } catch (err) {
       alert(err.response?.data?.error || 'Error')
     }
+  }
+
+  async function toggleBug(bug) {
+    try {
+      await api.patch(`/bugs/${bug.id}/resolver`)
+      setBugs(prev => prev.map(b => b.id === bug.id ? { ...b, resuelto: !b.resuelto } : b))
+    } catch { /* ignore */ }
+  }
+
+  async function deleteBug(bug) {
+    if (!window.confirm('¿Eliminar este reporte?')) return
+    try {
+      await api.delete(`/bugs/${bug.id}`)
+      setBugs(prev => prev.filter(b => b.id !== bug.id))
+    } catch { /* ignore */ }
   }
 
   function toggleNewFuncion(fn) {
@@ -288,9 +309,119 @@ export default function Admin() {
         </div>
       )}
 
+      {/* Bug reports */}
+      <div className="mt-6 border rounded-xl overflow-hidden">
+        <button
+          onClick={() => setShowBugs(v => !v)}
+          className="w-full flex items-center justify-between px-4 py-3 bg-muted hover:bg-muted/80 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <Bug size={15} className="text-amber-600" />
+            <span className="text-sm font-medium">Reportes de problemas</span>
+            {bugs.filter(b => !b.resuelto).length > 0 && (
+              <span className="text-xs bg-amber-100 text-amber-700 rounded-full px-2 py-0.5 font-medium">
+                {bugs.filter(b => !b.resuelto).length} sin resolver
+              </span>
+            )}
+          </div>
+          {showBugs ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+        </button>
+
+        {showBugs && (
+          <div className="divide-y">
+            {bugs.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">No hay reportes todavía.</p>
+            ) : bugs.map(bug => (
+              <div key={bug.id} className={`p-4 ${bug.resuelto ? 'opacity-50' : ''}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <span className="text-xs font-medium">{bug.Usuario?.nombre || 'Usuario eliminado'}</span>
+                      <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${bug.resuelto ? 'bg-gray-100 text-gray-400' : bug.tipo === 'mejora' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                        {bug.tipo === 'mejora' ? '💡 Mejora' : '🐛 Problema'}
+                      </span>
+                      <span className="text-xs text-muted-foreground font-mono bg-muted px-1.5 py-0.5 rounded">{bug.pagina}</span>
+                      <span className="text-xs text-muted-foreground">{new Date(bug.createdAt).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                      {bug.resuelto && <span className="text-xs text-green-600 font-medium">✓ Resuelto</span>}
+                    </div>
+                    <p className="text-sm whitespace-pre-wrap">{bug.texto}</p>
+                    {bug.imagen && (
+                      <button
+                        onClick={() => { setLightboxImg(bug.imagen); setZoomImg(false) }}
+                        className="mt-2 text-xs text-blue-600 hover:underline"
+                      >
+                        Ver captura
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => toggleBug(bug)}
+                      title={bug.resuelto ? 'Reabrir' : 'Marcar resuelto'}
+                      className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-green-600"
+                    >
+                      <CheckCheck size={15} />
+                    </button>
+                    <button
+                      onClick={() => deleteBug(bug)}
+                      title="Eliminar"
+                      className="p-1.5 rounded-lg hover:bg-red-50 transition-colors text-muted-foreground hover:text-destructive"
+                    >
+                      <Trash size={15} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Lightbox */}
+      {lightboxImg && (
+        <div className="fixed inset-0 z-50 bg-black/80" onClick={() => { setLightboxImg(null); setZoomImg(false) }}>
+          <div className="absolute top-3 right-3 flex gap-1 z-10">
+            <button
+              onClick={e => { e.stopPropagation(); setZoomImg(v => !v) }}
+              className="p-1.5 rounded-lg bg-black/60 text-white hover:bg-black/80 transition-colors"
+              title={zoomImg ? 'Ajustar al tamaño' : 'Zoom'}
+            >
+              {zoomImg ? <ZoomOut size={16} /> : <ZoomIn size={16} />}
+            </button>
+            <button
+              onClick={e => { e.stopPropagation(); setLightboxImg(null); setZoomImg(false) }}
+              className="p-1.5 rounded-lg bg-black/60 text-white hover:bg-black/80 transition-colors"
+              title="Cerrar"
+            >
+              <X size={16} />
+            </button>
+          </div>
+          {zoomImg ? (
+            <div className="absolute inset-0 overflow-auto" onClick={e => e.stopPropagation()}>
+              <img
+                src={lightboxImg}
+                alt="captura"
+                onClick={() => setZoomImg(false)}
+                className="block cursor-zoom-out rounded-lg"
+                style={{ width: '200%', height: 'auto' }}
+              />
+            </div>
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center" onClick={e => e.stopPropagation()}>
+              <img
+                src={lightboxImg}
+                alt="captura"
+                onClick={() => setZoomImg(true)}
+                className="max-w-[90vw] max-h-[90vh] object-contain cursor-zoom-in rounded-lg"
+              />
+            </div>
+          )}
+        </div>
+      )}
+
       {/* New user dialog */}
       <Dialog open={showNew} onOpenChange={setShowNew}>
-        <DialogContent>
+        <DialogContent aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>Nuevo usuario</DialogTitle>
           </DialogHeader>
@@ -328,7 +459,7 @@ export default function Admin() {
 
       {/* Password dialog */}
       <Dialog open={!!pwForm.userId} onOpenChange={() => setPwForm({ userId: null, password: '' })}>
-        <DialogContent>
+        <DialogContent aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>Asignar contraseña temporal</DialogTitle>
           </DialogHeader>

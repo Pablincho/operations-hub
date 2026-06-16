@@ -563,7 +563,7 @@ function ManualSection({ funcion, color, onManualEstado, isPrimary }) {
       )}
 
       <Dialog open={showEnviarDialog} onOpenChange={setShowEnviarDialog}>
-        <DialogContent>
+        <DialogContent aria-describedby={undefined}>
           <DialogHeader><DialogTitle>Enviar manual a aprobación</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">
             Tu manual de <strong>{funcion}</strong> (v{manual?.version}) será enviado a tu supervisor para revisión. No podrás editarlo hasta recibir respuesta.
