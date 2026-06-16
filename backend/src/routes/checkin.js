@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { Sequelize, Op } from 'sequelize';
 import { verifyJWT, requireAdmin } from '../auth.js';
-import { CheckinSession, KnowledgeEntry } from '../models/index.js';
+import { CheckinSession, KnowledgeEntry, Organizacion } from '../models/index.js';
 import { generarPreguntas, INITIAL_QUESTIONS } from '../services/checkinService.js';
 import { detectSensitive } from '../utils/detectSensitive.js';
 
@@ -19,17 +19,23 @@ router.get('/hoy', async (req, res) => {
     const userFunciones = req.user.funciones || [];
 
     // Determine primary occupant for each assigned function
-    // Primary = user with the earliest KnowledgeEntry for that function in the org
+    // Admin override in org.config.primaryOccupants takes precedence over earliest entry
     const primaryStatusMap = {};
     if (userFunciones.length > 0) {
+      const org = await Organizacion.findByPk(req.user.organizacionId, { attributes: ['config'] });
+      const primaryOverrides = org?.config?.primaryOccupants || {};
       await Promise.all(userFunciones.map(async (fn) => {
-        const earliest = await KnowledgeEntry.findOne({
-          where: { organizacionId: req.user.organizacionId, funcion: fn, categoria: 'checkin' },
-          order: [['createdAt', 'ASC']],
-          attributes: ['usuarioId']
-        });
-        // If no entries yet, this user is (or would be) primary
-        primaryStatusMap[fn] = !earliest || earliest.usuarioId === req.user.id;
+        const overrideId = primaryOverrides[fn];
+        if (overrideId) {
+          primaryStatusMap[fn] = overrideId === req.user.id;
+        } else {
+          const earliest = await KnowledgeEntry.findOne({
+            where: { organizacionId: req.user.organizacionId, funcion: fn, categoria: 'checkin' },
+            order: [['createdAt', 'ASC']],
+            attributes: ['usuarioId']
+          });
+          primaryStatusMap[fn] = !earliest || earliest.usuarioId === req.user.id;
+        }
       }));
     }
 
@@ -83,12 +89,20 @@ router.post('/iniciar', async (req, res) => {
     }
 
     // Only the primary occupant can do check-ins
-    const earliestEntry = await KnowledgeEntry.findOne({
-      where: { organizacionId: req.user.organizacionId, funcion, categoria: 'checkin' },
-      order: [['createdAt', 'ASC']],
-      attributes: ['usuarioId']
-    });
-    if (earliestEntry && earliestEntry.usuarioId !== req.user.id) {
+    const org = await Organizacion.findByPk(req.user.organizacionId, { attributes: ['config'] });
+    const overrideId = org?.config?.primaryOccupants?.[funcion];
+    let isSecondary;
+    if (overrideId) {
+      isSecondary = overrideId !== req.user.id;
+    } else {
+      const earliestEntry = await KnowledgeEntry.findOne({
+        where: { organizacionId: req.user.organizacionId, funcion, categoria: 'checkin' },
+        order: [['createdAt', 'ASC']],
+        attributes: ['usuarioId']
+      });
+      isSecondary = earliestEntry && earliestEntry.usuarioId !== req.user.id;
+    }
+    if (isSecondary) {
       return res.status(403).json({
         success: false,
         error: 'Solo el ocupante principal puede completar el check-in de este puesto.',

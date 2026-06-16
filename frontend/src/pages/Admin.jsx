@@ -14,6 +14,7 @@ export default function Admin() {
   const { user } = useAuth()
   const [users, setUsers] = useState([])
   const [progress, setProgress] = useState({})
+  const [primaryOccupants, setPrimaryOccupants] = useState({})
   const [defaultUserPassword, setDefaultUserPassword] = useState('Bienvenido123')
   const [loading, setLoading] = useState(true)
   const [showNew, setShowNew] = useState(false)
@@ -33,6 +34,7 @@ export default function Admin() {
         api.get('/usuarios/default-password')
       ])
       setUsers(usersRes.data.data)
+      setPrimaryOccupants(usersRes.data.meta?.primaryOccupants || {})
       setProgress(progRes.data.data)
       setDefaultUserPassword(defaultPwRes.data?.data?.defaultPassword || 'Bienvenido123')
     } catch {
@@ -61,6 +63,15 @@ export default function Admin() {
     try {
       await api.patch(`/usuarios/${u.id}/supervisor`, { supervisorId: supervisorId || null })
       setUsers(prev => prev.map(x => x.id === u.id ? { ...x, supervisorId: supervisorId || null } : x))
+    } catch (err) {
+      alert(err.response?.data?.error || 'Error')
+    }
+  }
+
+  async function setPrincipal(funcion, usuarioId) {
+    try {
+      await api.patch(`/usuarios/funciones/${encodeURIComponent(funcion)}/principal`, { usuarioId: usuarioId || null })
+      setPrimaryOccupants(prev => ({ ...prev, [funcion]: usuarioId || null }))
     } catch (err) {
       alert(err.response?.data?.error || 'Error')
     }
@@ -144,6 +155,25 @@ export default function Admin() {
                 </div>
                 <Progress value={pct} />
                 <p className="text-xs text-muted-foreground mt-1">{pct}% completo</p>
+                {(() => {
+                  const asignados = users.filter(u => u.activo && (u.funciones || []).includes(fn))
+                  if (asignados.length === 0) return null
+                  return (
+                    <div className="mt-2 flex items-center gap-1.5">
+                      <span className="text-xs text-muted-foreground shrink-0">Principal:</span>
+                      <select
+                        value={primaryOccupants[fn] || ''}
+                        onChange={e => setPrincipal(fn, e.target.value)}
+                        className="text-xs border rounded px-1.5 py-0.5 bg-background flex-1 min-w-0"
+                      >
+                        <option value="">Auto-detectar</option>
+                        {asignados.map(u => (
+                          <option key={u.id} value={u.id}>{u.nombre}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )
+                })()}
               </CardContent>
             </Card>
           )

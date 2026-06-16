@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { Op } from 'sequelize';
 import { verifyJWT, requireAdmin } from '../auth.js';
-import { Manual, KnowledgeEntry, Usuario } from '../models/index.js';
+import { Manual, KnowledgeEntry, Usuario, Organizacion } from '../models/index.js';
 import { generarManual } from '../services/manualService.js';
 import {
   sendManualEnviadoEmail,
@@ -64,13 +64,19 @@ router.get('/:funcion', async (req, res) => {
     });
 
     // Determine if current user is the primary occupant for this function
-    // Primary = user who created the earliest KnowledgeEntry for this function in the org
-    const earliestEntry = await KnowledgeEntry.findOne({
-      where: { organizacionId: req.user.organizacionId, funcion, categoria: 'checkin' },
-      order: [['createdAt', 'ASC']],
-      attributes: ['usuarioId']
-    });
-    const isPrimary = !earliestEntry || earliestEntry.usuarioId === req.user.id;
+    const org = await Organizacion.findByPk(req.user.organizacionId, { attributes: ['config'] });
+    const overrideId = org?.config?.primaryOccupants?.[funcion];
+    let isPrimary;
+    if (overrideId) {
+      isPrimary = overrideId === req.user.id;
+    } else {
+      const earliestEntry = await KnowledgeEntry.findOne({
+        where: { organizacionId: req.user.organizacionId, funcion, categoria: 'checkin' },
+        order: [['createdAt', 'ASC']],
+        attributes: ['usuarioId']
+      });
+      isPrimary = !earliestEntry || earliestEntry.usuarioId === req.user.id;
+    }
 
     if (!manual) return res.json({ success: true, data: null, isPrimary });
 
@@ -112,13 +118,21 @@ router.post('/:funcion/generar', async (req, res) => {
       return res.status(403).json({ success: false, error: 'No tenés esa función asignada' });
     }
 
-    // Only the primary occupant (first with entries) can generate the manual
-    const earliestEntry = await KnowledgeEntry.findOne({
-      where: { organizacionId: req.user.organizacionId, funcion, categoria: 'checkin' },
-      order: [['createdAt', 'ASC']],
-      attributes: ['usuarioId']
-    });
-    if (earliestEntry && earliestEntry.usuarioId !== req.user.id) {
+    // Only the primary occupant can generate the manual
+    const genOrg = await Organizacion.findByPk(req.user.organizacionId, { attributes: ['config'] });
+    const genOverrideId = genOrg?.config?.primaryOccupants?.[funcion];
+    let genIsSecondary;
+    if (genOverrideId) {
+      genIsSecondary = genOverrideId !== req.user.id;
+    } else {
+      const earliestEntry = await KnowledgeEntry.findOne({
+        where: { organizacionId: req.user.organizacionId, funcion, categoria: 'checkin' },
+        order: [['createdAt', 'ASC']],
+        attributes: ['usuarioId']
+      });
+      genIsSecondary = earliestEntry && earliestEntry.usuarioId !== req.user.id;
+    }
+    if (genIsSecondary) {
       return res.status(403).json({ success: false, error: 'Solo el ocupante principal puede generar el manual de este puesto.' });
     }
 
@@ -214,8 +228,13 @@ router.post('/:funcion/enviar', async (req, res) => {
       return res.status(404).json({ success: false, error: 'No hay borrador para enviar. Generá el manual primero.' });
     }
 
-    // Only the primary occupant (manual owner) can send
-    if (manual.usuarioId !== req.user.id) {
+    // Only the primary occupant can send
+    const sendOrg = await Organizacion.findByPk(req.user.organizacionId, { attributes: ['config'] });
+    const sendOverrideId = sendOrg?.config?.primaryOccupants?.[funcion];
+    const sendIsSecondary = sendOverrideId
+      ? sendOverrideId !== req.user.id
+      : manual.usuarioId !== req.user.id;
+    if (sendIsSecondary) {
       return res.status(403).json({ success: false, error: 'Solo el ocupante principal puede enviar este manual.' });
     }
 

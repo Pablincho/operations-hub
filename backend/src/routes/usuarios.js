@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { verifyJWT, requireAdmin } from '../auth.js';
-import { Usuario } from '../models/index.js';
+import { Usuario, Organizacion } from '../models/index.js';
 import { sendBienvenidaEmail } from '../services/emailService.js';
 
 const router = Router();
@@ -53,15 +53,22 @@ function getDefaultUserPassword() {
   return 'Bienvenido123';
 }
 
-// GET all users of the org
+// GET all users of the org + primaryOccupants config
 router.get('/', requireAdmin, async (req, res) => {
   try {
-    const usuarios = await Usuario.findAll({
-      where: { organizacionId: req.user.organizacionId },
-      attributes: { exclude: ['passwordHash', 'resetTokenHash', 'resetTokenExpiresAt'] },
-      order: [['createdAt', 'ASC']]
+    const [usuarios, org] = await Promise.all([
+      Usuario.findAll({
+        where: { organizacionId: req.user.organizacionId },
+        attributes: { exclude: ['passwordHash', 'resetTokenHash', 'resetTokenExpiresAt'] },
+        order: [['createdAt', 'ASC']]
+      }),
+      Organizacion.findByPk(req.user.organizacionId, { attributes: ['config'] })
+    ]);
+    res.json({
+      success: true,
+      data: usuarios,
+      meta: { primaryOccupants: org?.config?.primaryOccupants || {} }
     });
-    res.json({ success: true, data: usuarios });
   } catch {
     res.status(500).json({ success: false, error: 'Error interno' });
   }
@@ -237,6 +244,38 @@ router.delete('/:id', requireAdmin, async (req, res) => {
 
     await usuario.destroy();
     res.json({ success: true, data: { message: 'Usuario eliminado' } });
+  } catch {
+    res.status(500).json({ success: false, error: 'Error interno' });
+  }
+});
+
+// PATCH set primary occupant for a function (admin+)
+router.patch('/funciones/:funcion/principal', requireAdmin, async (req, res) => {
+  try {
+    const { funcion } = req.params;
+    const { usuarioId } = req.body;
+
+    if (usuarioId) {
+      const usuario = await Usuario.findOne({
+        where: { id: usuarioId, organizacionId: req.user.organizacionId }
+      });
+      if (!usuario) return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
+      if (!(usuario.funciones || []).includes(funcion)) {
+        return res.status(400).json({ success: false, error: 'El usuario no tiene esa función asignada' });
+      }
+    }
+
+    const org = await Organizacion.findByPk(req.user.organizacionId);
+    const config = org.config || {};
+    const primaryOccupants = { ...(config.primaryOccupants || {}) };
+    if (usuarioId) {
+      primaryOccupants[funcion] = usuarioId;
+    } else {
+      delete primaryOccupants[funcion];
+    }
+    await org.update({ config: { ...config, primaryOccupants } });
+
+    res.json({ success: true, data: { funcion, primaryOccupantId: usuarioId || null } });
   } catch {
     res.status(500).json({ success: false, error: 'Error interno' });
   }
