@@ -6,6 +6,7 @@ export function cn(...inputs) {
 }
 
 export const FUNCIONES = [
+  'Gerente General',
   'Tesorería',
   'Administración y Finanzas',
   'Operaciones Agropecuarias',
@@ -16,6 +17,7 @@ export const FUNCIONES = [
 ]
 
 export const FUNC_ICONS = {
+  'Gerente General': '🏢',
   'Tesorería': '🏦',
   'Administración y Finanzas': '📊',
   'Operaciones Agropecuarias': '🌾',
@@ -26,6 +28,7 @@ export const FUNC_ICONS = {
 }
 
 export const FUNC_COLORS = {
+  'Gerente General': '#7a1a1a',
   'Tesorería': '#1a3a1a',
   'Administración y Finanzas': '#5a2d82',
   'Operaciones Agropecuarias': '#7a4500',
@@ -36,6 +39,7 @@ export const FUNC_COLORS = {
 }
 
 export const FUNC_BG_LIGHT = {
+  'Gerente General': '#fdf0f0',
   'Tesorería': '#f0f7f0',
   'Administración y Finanzas': '#f5f0fa',
   'Operaciones Agropecuarias': '#fdf6ee',

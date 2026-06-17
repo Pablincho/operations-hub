@@ -164,6 +164,18 @@ export const BASE_QUESTIONS = {
 };
 
 export const INITIAL_QUESTIONS = {
+  'Gerente General': [
+    { pregunta: '¿Cuáles son las tres o cuatro decisiones estratégicas más importantes que tomás en el año?', bloque: 'B2' },
+    { pregunta: '¿Cómo estructurás tu semana tipo: qué reuniones, revisiones o rutinas tenés fijas?', bloque: 'B4' },
+    { pregunta: '¿A quién le reportás y con qué frecuencia? ¿Cómo es esa dinámica?', bloque: 'B5' },
+    { pregunta: '¿Qué indicadores o números seguís de cerca para evaluar el estado de la empresa?', bloque: 'B4' },
+    { pregunta: '¿Cuáles son los límites de autorización que vos aprobás y cuáles escalan a los propietarios?', bloque: 'B2' },
+    { pregunta: '¿Con qué personas externas tenés relaciones clave (escribanos, bancos, socios comerciales, organismos)?', bloque: 'B5' },
+    { pregunta: '¿Cómo gestionás el flujo de información entre las distintas áreas de la empresa?', bloque: 'B4' },
+    { pregunta: '¿Qué herramientas usás para comunicarte y hacer seguimiento del equipo?', bloque: 'B6' },
+    { pregunta: '¿Cómo es el proceso de toma de decisiones para inversiones o proyectos nuevos?', bloque: 'B4' },
+    { pregunta: '¿Qué conocimiento de tu puesto es el más difícil de transferir y por qué?', bloque: 'B3' }
+  ],
   Tesorería: [
     { pregunta: '¿Cuántas cuentas bancarias manejás y en qué banco está cada una?', bloque: 'B6' },
     { pregunta: '¿Cómo se llama el sistema contable que usás y cómo ingresás a él?', bloque: 'B6' },

@@ -173,9 +173,13 @@ router.post('/mensaje', async (req, res) => {
       });
     }
 
-    // Sensitive entries: org-wide for assigned functions (superadmin sees all, operativo sees own funciones)
+    // Sensitive entries: superadmin sees all; operativo sees their own functions; admin sees none
     let sensibleEntries = [];
-    if (userFunciones.length > 0) {
+    if (req.user.rol === 'superadmin') {
+      sensibleEntries = await KnowledgeEntry.findAll({
+        where: { organizacionId: req.user.organizacionId, esSensible: true }
+      });
+    } else if (req.user.rol === 'operativo' && userFunciones.length > 0) {
       sensibleEntries = await KnowledgeEntry.findAll({
         where: {
           organizacionId: req.user.organizacionId,
