@@ -41,7 +41,6 @@ ${texto}`
 }
 
 // Applies minimum changes to an existing block based only on the updated entries.
-// Does NOT rewrite the whole block — preserves all unchanged text verbatim.
 async function actualizarBloqueMinimo(funcion, nombreBloque, existingText, newQas) {
   const texto = newQas
     .map(({ titulo, contenido }) => `P: ${titulo}\nR: ${contenido}`)
@@ -74,9 +73,8 @@ REGLAS ESTRICTAS:
   return response.choices[0].message.content.trim();
 }
 
-// Blocks with no new entries: return existing text verbatim.
-// Blocks with new/edited entries on an existing block: minimal targeted update.
-// Blocks being generated for the first time: full generation from scratch.
+// No new entries → keep verbatim. New entries on existing block → minimal update.
+// New block → full generation from scratch.
 async function generarBloque(funcion, nombreBloque, existingText, newQas, allQas) {
   if (existingText && newQas.length === 0) return existingText;
   if (!existingText) return generarBloqueNuevo(funcion, nombreBloque, allQas);

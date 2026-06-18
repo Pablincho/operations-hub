@@ -81,8 +81,16 @@ router.get('/:funcion', async (req, res) => {
     if (!manual) return res.json({ success: true, data: null, isPrimary });
 
     const data = manual.toJSON();
-    const ocupante = await Usuario.findByPk(manual.usuarioId, { attributes: ['nombre'] });
+    const [ocupante, anterior] = await Promise.all([
+      Usuario.findByPk(manual.usuarioId, { attributes: ['nombre'] }),
+      Manual.findOne({
+        where: { organizacionId: req.user.organizacionId, funcion, estado: 'obsoleto' },
+        order: [['createdAt', 'DESC']],
+        attributes: ['contenido']
+      })
+    ]);
     data.ocupanteNombre = ocupante?.nombre || req.user.nombre;
+    data.contenidoAnterior = anterior?.contenido || null;
     if (manual.aprobadoPor) {
       const aprobador = await Usuario.findByPk(manual.aprobadoPor, { attributes: ['nombre'] });
       data.aprobadoPorNombre = aprobador?.nombre || null;

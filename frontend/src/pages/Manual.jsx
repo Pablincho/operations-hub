@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { diffWords } from 'diff'
 import { pdf } from '@react-pdf/renderer'
 import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer'
 import api from '@/services/api'
@@ -11,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { FUNC_ICONS, FUNC_COLORS } from '@/lib/utils'
 import {
   Loader2, Download, Send, Sparkles, ChevronDown, ChevronUp,
-  Pencil, RefreshCw, BookOpen, CalendarCheck, CheckCircle2, RotateCcw
+  Pencil, RefreshCw, BookOpen, CalendarCheck, CheckCircle2, RotateCcw, X, GitCompare, FileText
 } from 'lucide-react'
 
 const LOGO_URL = 'https://res.cloudinary.com/dmigevwah/image/upload/f_png/v1777495745/don_emilio/don_emilio_logo'
@@ -216,6 +217,23 @@ function ManualPDF({ funcion, manual, historial = [] }) {
   )
 }
 
+// ─── Word diff ───────────────────────────────────────────────────────────────
+function WordDiff({ oldText, newText }) {
+  if (!oldText) return <p className="text-xs leading-relaxed whitespace-pre-wrap">{newText}</p>
+  const parts = diffWords(oldText, newText)
+  return (
+    <p className="text-xs leading-relaxed whitespace-pre-wrap">
+      {parts.map((part, i) => (
+        <span key={i} style={{
+          background: part.added ? '#d4edda' : part.removed ? '#f8d7da' : 'transparent',
+          color: part.added ? '#155724' : part.removed ? '#721c24' : 'inherit',
+          textDecoration: part.removed ? 'line-through' : 'none',
+        }}>{part.value}</span>
+      ))}
+    </p>
+  )
+}
+
 // ─── Check-in block ───────────────────────────────────────────────────────────
 function CheckinBlock({ funcion, color, todaySession, onboardingDone, diasCompletos, onComplete, isPrimary }) {
   const [session, setSession] = useState(todaySession)
@@ -339,7 +357,7 @@ function CheckinBlock({ funcion, color, todaySession, onboardingDone, diasComple
 }
 
 // ─── Manual section ───────────────────────────────────────────────────────────
-function ManualSection({ funcion, color, onManualEstado, isPrimary }) {
+function ManualSection({ funcion, color, onManualEstado, isPrimary, onGenerated }) {
   const [manual, setManual] = useState(null)
   const [historial, setHistorial] = useState([])
   const [loading, setLoading] = useState(true)
@@ -350,6 +368,8 @@ function ManualSection({ funcion, color, onManualEstado, isPrimary }) {
   const [showHistorial, setShowHistorial] = useState(false)
   const [showEnviarDialog, setShowEnviarDialog] = useState(false)
   const [notaEnvio, setNotaEnvio] = useState('')
+  const [contenidoAnterior, setContenidoAnterior] = useState(null)
+  const [showDiff, setShowDiff] = useState(true)
 
   useEffect(() => { loadManual() }, [funcion])
   useEffect(() => { onManualEstado?.(manual?.estado ?? null) }, [manual])
@@ -362,6 +382,7 @@ function ManualSection({ funcion, color, onManualEstado, isPrimary }) {
         api.get(`/manual/${encodeURIComponent(funcion)}/historial`)
       ])
       setManual(manualRes.data.data)
+      setContenidoAnterior(manualRes.data.data?.contenidoAnterior || null)
       setHistorial(histRes.data.data || [])
     } catch { /* ignore */ }
     finally { setLoading(false) }
@@ -374,8 +395,12 @@ function ManualSection({ funcion, color, onManualEstado, isPrimary }) {
       setManual(res.data.data)
       const histRes = await api.get(`/manual/${encodeURIComponent(funcion)}/historial`)
       setHistorial(histRes.data.data || [])
+      onGenerated?.()
     } catch (err) {
-      alert(err.response?.data?.error || 'Error al generar el manual')
+      const msg = err.response?.data?.error || 'Error al generar el manual'
+      // "No hay cambios" means all edited entries are already incorporated → clear stale markers
+      if (err.response?.status === 400 && msg.includes('No hay respuestas')) onGenerated?.()
+      alert(msg)
     } finally { setGenerating(false) }
   }
 
@@ -511,6 +536,25 @@ function ManualSection({ funcion, color, onManualEstado, isPrimary }) {
             </div>
           )}
 
+          {contenidoAnterior && manual?.estado !== 'vigente' && (
+            <div className="flex text-xs rounded-lg border overflow-hidden self-start mb-1" style={{ borderColor: '#d1d5db' }}>
+              <button
+                onClick={() => setShowDiff(true)}
+                className="flex items-center gap-1 px-2.5 py-1 transition-colors"
+                style={{ background: showDiff ? color : 'transparent', color: showDiff ? '#fff' : '#6b7280', fontWeight: showDiff ? 600 : 400 }}
+              >
+                <GitCompare size={11} /> Cambios
+              </button>
+              <button
+                onClick={() => setShowDiff(false)}
+                className="flex items-center gap-1 px-2.5 py-1 transition-colors border-l"
+                style={{ borderColor: '#d1d5db', background: !showDiff ? color : 'transparent', color: !showDiff ? '#fff' : '#6b7280', fontWeight: !showDiff ? 600 : 400 }}
+              >
+                <FileText size={11} /> Texto
+              </button>
+            </div>
+          )}
+
           {bloques.map(([key, nombre]) => (
             <div key={key} className="border rounded-lg overflow-hidden">
               <button
@@ -522,8 +566,11 @@ function ManualSection({ funcion, color, onManualEstado, isPrimary }) {
                 {expanded[key] ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
               </button>
               {expanded[key] && (
-                <div className="px-3 pb-3 pt-1 text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap border-t bg-muted/20">
-                  {manual.contenido[key]}
+                <div className="px-3 pb-3 pt-2 border-t bg-muted/20 text-muted-foreground">
+                  {contenidoAnterior && showDiff && manual?.estado !== 'vigente'
+                    ? <WordDiff oldText={maskEncrypted(contenidoAnterior[key] || null)} newText={maskEncrypted(manual.contenido[key])} />
+                    : <p className="text-xs leading-relaxed whitespace-pre-wrap">{maskEncrypted(manual.contenido[key])}</p>
+                  }
                 </div>
               )}
             </div>
@@ -594,7 +641,7 @@ function persistEditedIds(ids) {
   try { localStorage.setItem(EDITED_KEY, JSON.stringify([...ids])) } catch {}
 }
 
-function EntradasSection({ funcion, color, refreshTrigger, manualEstado, isPrimary }) {
+function EntradasSection({ funcion, color, refreshTrigger, manualEstado, isPrimary, clearEditedTrigger }) {
   const [entries, setEntries] = useState([])
   const [loading, setLoading] = useState(false)
   const [expanded, setExpanded] = useState(false)
@@ -605,6 +652,13 @@ function EntradasSection({ funcion, color, refreshTrigger, manualEstado, isPrima
   const [autoSensibleIds, setAutoSensibleIds] = useState(new Set())
 
   useEffect(() => { loadEntries() }, [funcion, refreshTrigger])
+
+  useEffect(() => {
+    if (!clearEditedTrigger) return
+    persistEditedIds(new Set())
+    setEditedIds(new Set())
+    loadEntries()
+  }, [clearEditedTrigger])
 
   async function loadEntries() {
     setLoading(true)
@@ -618,6 +672,16 @@ function EntradasSection({ funcion, color, refreshTrigger, manualEstado, isPrima
       setEntries([...edited, ...rest])
     } catch { /* ignore */ }
     finally { setLoading(false) }
+  }
+
+  function discardEdit(id) {
+    setEditedIds(prev => {
+      const next = new Set(prev)
+      next.delete(id)
+      persistEditedIds(next)
+      return next
+    })
+    loadEntries()
   }
 
   async function saveEdit(id) {
@@ -653,7 +717,7 @@ function EntradasSection({ funcion, color, refreshTrigger, manualEstado, isPrima
       {expanded && !loading && (
         <div className="mt-3 flex flex-col gap-2">
           {entries.map(entry => {
-            const isEdited = editedIds.has(entry.id) && manualEstado === 'borrador'
+            const isEdited = editedIds.has(entry.id)
             const isAutoSensible = autoSensibleIds.has(entry.id) && manualEstado === 'borrador'
             const isBlocked = entry._bloqueado === true
             return (
@@ -686,9 +750,20 @@ function EntradasSection({ funcion, color, refreshTrigger, manualEstado, isPrima
                         : entry.contenido}
                     </p>
                     {!isBlocked && isPrimary !== false && (
-                      <button onClick={() => { setEditingId(entry.id); setEditContent(entry.contenido) }} className="p-1 text-muted-foreground hover:text-foreground shrink-0 transition-colors">
-                        <Pencil size={13} />
-                      </button>
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        {isEdited && (
+                          <button
+                            onClick={() => discardEdit(entry.id)}
+                            title="Descartar marcador de edición"
+                            className="p-1 text-amber-400 hover:text-amber-600 transition-colors"
+                          >
+                            <X size={13} />
+                          </button>
+                        )}
+                        <button onClick={() => { setEditingId(entry.id); setEditContent(entry.contenido) }} className="p-1 text-muted-foreground hover:text-foreground transition-colors">
+                          <Pencil size={13} />
+                        </button>
+                      </div>
                     )}
                   </div>
                 )}
@@ -719,6 +794,7 @@ export default function MiManual() {
   const [entryCounts, setEntryCounts] = useState({})
   const [refreshEntries, setRefreshEntries] = useState(0)
   const [manualEstados, setManualEstados] = useState({})
+  const [clearEditedTrigger, setClearEditedTrigger] = useState(0)
   const [primaryStatusMap, setPrimaryStatusMap] = useState({})
 
   useEffect(() => { load() }, [])
@@ -833,6 +909,7 @@ export default function MiManual() {
             color={color}
             onManualEstado={estado => setManualEstados(prev => ({ ...prev, [selectedFn]: estado }))}
             isPrimary={primaryStatusMap[selectedFn] ?? true}
+            onGenerated={() => setClearEditedTrigger(n => n + 1)}
           />
 
           {/* 3 — Previous answers */}
@@ -843,6 +920,7 @@ export default function MiManual() {
               refreshTrigger={refreshEntries}
               manualEstado={manualEstados[selectedFn]}
               isPrimary={primaryStatusMap[selectedFn] ?? true}
+              clearEditedTrigger={clearEditedTrigger}
             />
           )}
         </CardContent>
