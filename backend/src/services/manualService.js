@@ -14,10 +14,14 @@ const BLOQUES = {
   B6: 'Herramientas y sistemas'
 };
 
+// Regla de enmascarado para respuestas con datos sensibles (reutilizada en ambos prompts)
+const REGLA_SENSIBLE = `Las respuestas marcadas [SENSIBLE] contienen datos confidenciales (usuarios, contraseñas, claves, números de cuenta o de documento). De esas respuestas incluí SOLO la información general no confidencial (nombre del sistema, herramienta o proceso) y reemplazá CUALQUIER credencial, usuario, contraseña, clave, PIN o número confidencial por "***". Nunca escribas una credencial real en el texto.`;
+
 // Generates a block from scratch using all current entries for that block
 async function generarBloqueNuevo(funcion, nombreBloque, allQas) {
   const texto = allQas
-    .map(({ titulo, contenido }) => `P: ${titulo}\nR: ${contenido}`)
+    .map(({ titulo, contenido, esSensible }) =>
+      `${esSensible ? '[SENSIBLE] ' : ''}P: ${titulo}\nR: ${contenido}`)
     .join('\n\n');
 
   const response = await getOpenAI().chat.completions.create({
@@ -29,6 +33,7 @@ A partir de las siguientes respuestas del ocupante del puesto de "${funcion}", r
 El texto debe ser IMPERSONAL y descriptivo del puesto, en tercera persona. Nunca uses primera persona (nada de "mi", "yo", "me", "mis"). Ejemplo correcto: "El tesorero gestiona...", "El puesto requiere...", "Se espera que...".
 Sin títulos ni listas — solo prosa fluida.
 Cada respuesta corresponde a un aspecto distinto del puesto. Tratá cada una de forma independiente; no mezcles información entre respuestas.
+${REGLA_SENSIBLE}
 Separación numérica en español: punto para miles, coma para decimales (ej: 1.000 pesos, 10,5%).
 
 Respuestas del ocupante:
@@ -47,9 +52,10 @@ ${texto}`
 async function actualizarBloqueMinimo(funcion, nombreBloque, existingText, newQas, allQas) {
   const changedTitles = new Set(newQas.map(q => q.titulo));
   const texto = allQas
-    .map(({ titulo, contenido }) => {
-      const tag = changedTitles.has(titulo) ? '[MODIFICADA]' : '[SIN CAMBIOS]';
-      return `${tag} P: ${titulo}\nR: ${contenido}`;
+    .map(({ titulo, contenido, esSensible }) => {
+      const estado = changedTitles.has(titulo) ? '[MODIFICADA]' : '[SIN CAMBIOS]';
+      const sens = esSensible ? ' [SENSIBLE]' : '';
+      return `${estado}${sens} P: ${titulo}\nR: ${contenido}`;
     })
     .join('\n\n');
 
@@ -70,6 +76,7 @@ REGLAS ESTRICTAS:
 - Las respuestas [SIN CAMBIOS] sirven como contexto para identificar qué fragmentos del texto NO debés tocar. Dejá exactamente esos fragmentos intactos: misma redacción, misma puntuación, mismo orden.
 - Para cada respuesta [MODIFICADA]: encontrá el fragmento del texto que habla de ESE tema y actualizalo con la nueva información. Si la respuesta eliminó información, eliminá esas oraciones. Si agregó información nueva, incorporala de forma mínima.
 - Nunca mezcles contenido entre respuestas distintas.
+- ${REGLA_SENSIBLE}
 - Si en las oraciones que modificás hay lenguaje en primera persona ("mi", "yo", "me", "mis") → reescribí solo esas oraciones en tercera persona impersonal ("El ${funcion}...", "El puesto requiere..."). No toques las demás.
 - Devolvé el texto completo con los cambios mínimos y nada más.`
     }],
@@ -89,9 +96,11 @@ async function generarBloque(funcion, nombreBloque, existingText, newQas, allQas
 }
 
 export async function generarManual(funcion, organizacionId, KnowledgeEntry, currentManual) {
+  // Incluye entradas sensibles (el hook afterFind las descifra); el prompt enmascara
+  // las credenciales con *** pero conserva la info general (ej: nombre del sistema).
   const entries = await KnowledgeEntry.findAll({
-    where: { funcion, organizacionId, categoria: 'checkin', esSensible: false },
-    attributes: ['titulo', 'contenido', 'bloque', 'createdAt', 'updatedAt'],
+    where: { funcion, organizacionId, categoria: 'checkin' },
+    attributes: ['titulo', 'contenido', 'bloque', 'esSensible', 'createdAt', 'updatedAt'],
     order: [['createdAt', 'ASC']]
   });
 
@@ -104,12 +113,12 @@ export async function generarManual(funcion, organizacionId, KnowledgeEntry, cur
     const b = e.bloque || 'B4';
     if (!allGrouped[b]) allGrouped[b] = [];
     if (!newGrouped[b]) newGrouped[b] = [];
-    allGrouped[b].push({ titulo: e.titulo, contenido: e.contenido });
+    allGrouped[b].push({ titulo: e.titulo, contenido: e.contenido, esSensible: e.esSensible });
     const isNew = !lastGeneratedAt
       || new Date(e.createdAt) > lastGeneratedAt
       || new Date(e.updatedAt) > lastGeneratedAt;
     if (isNew) {
-      newGrouped[b].push({ titulo: e.titulo, contenido: e.contenido });
+      newGrouped[b].push({ titulo: e.titulo, contenido: e.contenido, esSensible: e.esSensible });
     }
   }
 

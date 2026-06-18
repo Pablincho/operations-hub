@@ -357,7 +357,7 @@ function CheckinBlock({ funcion, color, todaySession, onboardingDone, diasComple
 }
 
 // ─── Manual section ───────────────────────────────────────────────────────────
-function ManualSection({ funcion, color, onManualEstado, isPrimary }) {
+function ManualSection({ funcion, color, onManualEstado, isPrimary, autoRegenTrigger }) {
   const [manual, setManual] = useState(null)
   const [historial, setHistorial] = useState([])
   const [loading, setLoading] = useState(true)
@@ -372,7 +372,13 @@ function ManualSection({ funcion, color, onManualEstado, isPrimary }) {
   const [showDiff, setShowDiff] = useState(true)
 
   useEffect(() => { loadManual() }, [funcion])
-  useEffect(() => { onManualEstado?.(manual?.estado ?? null) }, [manual])
+  useEffect(() => {
+    onManualEstado?.(manual ? { estado: manual.estado, generadoEn: manual.generadoEn } : null)
+  }, [manual])
+  useEffect(() => {
+    if (!autoRegenTrigger) return
+    generarOActualizar()
+  }, [autoRegenTrigger])
 
   async function loadManual() {
     setLoading(true)
@@ -649,7 +655,16 @@ function persistEditedIds(ids) {
   try { localStorage.setItem(EDITED_KEY, JSON.stringify([...ids])) } catch {}
 }
 
-function EntradasSection({ funcion, color, refreshTrigger, manualEstado, isPrimary, clearEditedTrigger }) {
+// Valor previo a la edición de cada respuesta, para poder descartar y volver al original
+const ORIGINAL_KEY = 'remi_edited_original'
+function loadOriginals() {
+  try { return JSON.parse(localStorage.getItem(ORIGINAL_KEY) || '{}') } catch { return {} }
+}
+function persistOriginals(map) {
+  try { localStorage.setItem(ORIGINAL_KEY, JSON.stringify(map)) } catch {}
+}
+
+function EntradasSection({ funcion, color, refreshTrigger, manualEstado, generadoEn, isPrimary, clearEditedTrigger, onDiscardIncorporado }) {
   const [entries, setEntries] = useState([])
   const [loading, setLoading] = useState(false)
   const [expanded, setExpanded] = useState(false)
@@ -664,6 +679,7 @@ function EntradasSection({ funcion, color, refreshTrigger, manualEstado, isPrima
   useEffect(() => {
     if (!clearEditedTrigger) return
     persistEditedIds(new Set())
+    persistOriginals({})
     setEditedIds(new Set())
     loadEntries()
   }, [clearEditedTrigger])
@@ -682,7 +698,19 @@ function EntradasSection({ funcion, color, refreshTrigger, manualEstado, isPrima
     finally { setLoading(false) }
   }
 
-  function discardEdit(id) {
+  async function discardEdit(id) {
+    // Si la respuesta ya estaba incorporada al borrador (verde), el borrador quedará
+    // desactualizado tras la reversión → notificar para regenerar automáticamente.
+    const entry = entries.find(e => e.id === id)
+    const wasIncorporado = entry && generadoEn &&
+      new Date(entry.updatedAt) <= new Date(generadoEn)
+
+    const originals = loadOriginals()
+    if (id in originals) {
+      try { await api.put(`/knowledge/${id}`, { contenido: originals[id] }) } catch { /* ignore */ }
+      delete originals[id]
+      persistOriginals(originals)
+    }
     setEditedIds(prev => {
       const next = new Set(prev)
       next.delete(id)
@@ -690,11 +718,19 @@ function EntradasSection({ funcion, color, refreshTrigger, manualEstado, isPrima
       return next
     })
     loadEntries()
+    if (wasIncorporado) onDiscardIncorporado?.()
   }
 
   async function saveEdit(id) {
     setSaving(true)
     try {
+      // Guardar el valor original (la primera vez que se edita en este ciclo) para poder descartar
+      const prevEntry = entries.find(e => e.id === id)
+      const originals = loadOriginals()
+      if (prevEntry && !(id in originals)) {
+        originals[id] = prevEntry.contenido
+        persistOriginals(originals)
+      }
       const res = await api.put(`/knowledge/${id}`, { contenido: editContent })
       const updated = res.data.data
       setEntries(prev => [updated, ...prev.filter(e => e.id !== id)])
@@ -726,12 +762,20 @@ function EntradasSection({ funcion, color, refreshTrigger, manualEstado, isPrima
         <div className="mt-3 flex flex-col gap-2">
           {entries.map(entry => {
             const isEdited = editedIds.has(entry.id)
+            // Verde = el cambio ya quedó incorporado al borrador (editado antes de la última generación)
+            // Ámbar = editado pero pendiente de actualizar el borrador
+            const incorporado = isEdited && generadoEn &&
+              new Date(entry.updatedAt) <= new Date(generadoEn)
             const isAutoSensible = autoSensibleIds.has(entry.id) && manualEstado === 'borrador'
             const isBlocked = entry._bloqueado === true
             return (
               <div
                 key={entry.id}
-                className={`rounded-lg p-3 ${isEdited ? 'ring-2 ring-amber-300 bg-amber-50' : 'bg-[#f9faf9]'}`}
+                className={`rounded-lg p-3 ${
+                  incorporado ? 'ring-2 ring-green-300 bg-green-50'
+                  : isEdited ? 'ring-2 ring-amber-300 bg-amber-50'
+                  : 'bg-[#f9faf9]'
+                }`}
               >
                 <p className="text-xs font-semibold mb-1 flex items-center gap-1" style={{ color }}>
                   {entry.titulo}
@@ -762,8 +806,8 @@ function EntradasSection({ funcion, color, refreshTrigger, manualEstado, isPrima
                         {isEdited && (
                           <button
                             onClick={() => discardEdit(entry.id)}
-                            title="Descartar marcador de edición"
-                            className="p-1 text-amber-400 hover:text-amber-600 transition-colors"
+                            title="Descartar cambio y volver al valor original"
+                            className={`p-1 transition-colors ${incorporado ? 'text-green-500 hover:text-green-700' : 'text-amber-400 hover:text-amber-600'}`}
                           >
                             <X size={13} />
                           </button>
@@ -801,8 +845,9 @@ export default function MiManual() {
   const [dailyCounts, setDailyCounts] = useState({})
   const [entryCounts, setEntryCounts] = useState({})
   const [refreshEntries, setRefreshEntries] = useState(0)
-  const [manualEstados, setManualEstados] = useState({})
+  const [manualMeta, setManualMeta] = useState({})
   const [clearEditedTrigger, setClearEditedTrigger] = useState(0)
+  const [autoRegenTrigger, setAutoRegenTrigger] = useState(0)
   const [primaryStatusMap, setPrimaryStatusMap] = useState({})
 
   useEffect(() => { load() }, [])
@@ -915,12 +960,12 @@ export default function MiManual() {
           <ManualSection
             funcion={selectedFn}
             color={color}
-            onManualEstado={estado => {
-              setManualEstados(prev => ({ ...prev, [selectedFn]: estado }))
-              // Los marcadores de edición se mantienen hasta que el manual quede validado (vigente)
-              if (estado === 'vigente') setClearEditedTrigger(n => n + 1)
+            onManualEstado={meta => {
+              setManualMeta(prev => ({ ...prev, [selectedFn]: meta }))
+              if (meta?.estado === 'vigente') setClearEditedTrigger(n => n + 1)
             }}
             isPrimary={primaryStatusMap[selectedFn] ?? true}
+            autoRegenTrigger={autoRegenTrigger}
           />
 
           {/* 3 — Previous answers */}
@@ -929,9 +974,11 @@ export default function MiManual() {
               funcion={selectedFn}
               color={color}
               refreshTrigger={refreshEntries}
-              manualEstado={manualEstados[selectedFn]}
+              manualEstado={manualMeta[selectedFn]?.estado}
+              generadoEn={manualMeta[selectedFn]?.generadoEn}
               isPrimary={primaryStatusMap[selectedFn] ?? true}
               clearEditedTrigger={clearEditedTrigger}
+              onDiscardIncorporado={() => setAutoRegenTrigger(n => n + 1)}
             />
           )}
         </CardContent>
