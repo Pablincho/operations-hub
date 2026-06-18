@@ -357,7 +357,7 @@ function CheckinBlock({ funcion, color, todaySession, onboardingDone, diasComple
 }
 
 // ─── Manual section ───────────────────────────────────────────────────────────
-function ManualSection({ funcion, color, onManualEstado, isPrimary, onGenerated }) {
+function ManualSection({ funcion, color, onManualEstado, isPrimary }) {
   const [manual, setManual] = useState(null)
   const [historial, setHistorial] = useState([])
   const [loading, setLoading] = useState(true)
@@ -391,16 +391,11 @@ function ManualSection({ funcion, color, onManualEstado, isPrimary, onGenerated 
   async function generarOActualizar() {
     setGenerating(true)
     try {
-      const res = await api.post(`/manual/${encodeURIComponent(funcion)}/generar`)
-      setManual(res.data.data)
-      const histRes = await api.get(`/manual/${encodeURIComponent(funcion)}/historial`)
-      setHistorial(histRes.data.data || [])
-      onGenerated?.()
+      await api.post(`/manual/${encodeURIComponent(funcion)}/generar`)
+      // Recargar para traer la base del diff (contenidoAnterior) actualizada
+      await loadManual()
     } catch (err) {
-      const msg = err.response?.data?.error || 'Error al generar el manual'
-      // "No hay cambios" means all edited entries are already incorporated → clear stale markers
-      if (err.response?.status === 400 && msg.includes('No hay respuestas')) onGenerated?.()
-      alert(msg)
+      alert(err.response?.data?.error || 'Error al generar el manual')
     } finally { setGenerating(false) }
   }
 
@@ -439,6 +434,13 @@ function ManualSection({ funcion, color, onManualEstado, isPrimary, onGenerated 
     : []
   const estadoInfo = manual ? (ESTADO_LABELS[manual.estado] || ESTADO_LABELS.borrador) : null
   const versionesAnteriores = historial.filter(h => h.estado === 'obsoleto')
+
+  // Un bloque está "editado" si su contenido difiere de la última versión aprobada
+  // (no se marca en manuales ya vigentes, donde no hay cambios pendientes que mostrar)
+  function bloqueCambiado(key) {
+    if (!contenidoAnterior || manual?.estado === 'vigente') return false
+    return maskEncrypted(contenidoAnterior[key] || '') !== maskEncrypted(manual.contenido[key] || '')
+  }
 
   return (
     <div>
@@ -555,14 +557,19 @@ function ManualSection({ funcion, color, onManualEstado, isPrimary, onGenerated 
             </div>
           )}
 
-          {bloques.map(([key, nombre]) => (
+          {bloques.map(([key, nombre]) => {
+            const cambiado = bloqueCambiado(key)
+            return (
             <div key={key} className="border rounded-lg overflow-hidden">
               <button
                 className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-left hover:bg-muted/50 transition-colors"
-                style={{ color }}
+                style={{ color: cambiado ? '#b45309' : color }}
                 onClick={() => setExpanded(e => ({ ...e, [key]: !e[key] }))}
               >
-                {nombre}
+                <span className="flex items-center gap-1.5">
+                  {cambiado && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" title="Bloque con cambios" />}
+                  {nombre}
+                </span>
                 {expanded[key] ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
               </button>
               {expanded[key] && (
@@ -574,7 +581,8 @@ function ManualSection({ funcion, color, onManualEstado, isPrimary, onGenerated 
                 </div>
               )}
             </div>
-          ))}
+            )
+          })}
 
           {manual.observaciones && (
             <div className="mt-2 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
@@ -907,9 +915,12 @@ export default function MiManual() {
           <ManualSection
             funcion={selectedFn}
             color={color}
-            onManualEstado={estado => setManualEstados(prev => ({ ...prev, [selectedFn]: estado }))}
+            onManualEstado={estado => {
+              setManualEstados(prev => ({ ...prev, [selectedFn]: estado }))
+              // Los marcadores de edición se mantienen hasta que el manual quede validado (vigente)
+              if (estado === 'vigente') setClearEditedTrigger(n => n + 1)
+            }}
             isPrimary={primaryStatusMap[selectedFn] ?? true}
-            onGenerated={() => setClearEditedTrigger(n => n + 1)}
           />
 
           {/* 3 — Previous answers */}

@@ -18,6 +18,20 @@ function nextVersion(v, isMajor = false) {
   return isMajor ? `${major + 1}.0` : `${major}.${minor + 1}`;
 }
 
+// Baseline para diffs: contenido de la última versión APROBADA (vigente o ya archivada),
+// no el obsoleto más reciente. Así el diff queda anclado a la última aprobación y no
+// "deriva" con cada Actualizar (que archiva borradores intermedios como obsoletos).
+async function getContenidoUltimaVigente(organizacionId, funcion, excludeId = null) {
+  const where = { organizacionId, funcion, aprobadoEn: { [Op.ne]: null } };
+  if (excludeId) where.id = { [Op.ne]: excludeId };
+  const m = await Manual.findOne({
+    where,
+    order: [['aprobadoEn', 'DESC']],
+    attributes: ['contenido']
+  });
+  return m?.contenido || null;
+}
+
 // GET pending manuals for review (admin/superadmin sees manuals of their supervisees)
 router.get('/pendientes', requireAdmin, async (req, res) => {
   try {
@@ -34,17 +48,13 @@ router.get('/pendientes', requireAdmin, async (req, res) => {
       order: [['updatedAt', 'DESC']]
     });
 
-    // Fetch the most recent obsoleto version for each pending manual (for diff view)
+    // Diff contra la última versión aprobada (no el obsoleto más reciente)
     const data = await Promise.all(manuales.map(async m => {
-      const anterior = await Manual.findOne({
-        where: { organizacionId: req.user.organizacionId, funcion: m.funcion, estado: 'obsoleto' },
-        order: [['createdAt', 'DESC']],
-        attributes: ['id', 'version', 'contenido']
-      });
+      const contenidoAnterior = await getContenidoUltimaVigente(req.user.organizacionId, m.funcion, m.id);
       return {
         ...m.toJSON(),
         ocupante: supervisees.find(u => u.id === m.usuarioId),
-        contenidoAnterior: anterior?.contenido || null
+        contenidoAnterior
       };
     }));
 
@@ -81,16 +91,12 @@ router.get('/:funcion', async (req, res) => {
     if (!manual) return res.json({ success: true, data: null, isPrimary });
 
     const data = manual.toJSON();
-    const [ocupante, anterior] = await Promise.all([
+    const [ocupante, contenidoAnterior] = await Promise.all([
       Usuario.findByPk(manual.usuarioId, { attributes: ['nombre'] }),
-      Manual.findOne({
-        where: { organizacionId: req.user.organizacionId, funcion, estado: 'obsoleto' },
-        order: [['createdAt', 'DESC']],
-        attributes: ['contenido']
-      })
+      getContenidoUltimaVigente(req.user.organizacionId, funcion, manual.id)
     ]);
     data.ocupanteNombre = ocupante?.nombre || req.user.nombre;
-    data.contenidoAnterior = anterior?.contenido || null;
+    data.contenidoAnterior = contenidoAnterior;
     if (manual.aprobadoPor) {
       const aprobador = await Usuario.findByPk(manual.aprobadoPor, { attributes: ['nombre'] });
       data.aprobadoPorNombre = aprobador?.nombre || null;
@@ -269,13 +275,8 @@ router.post('/:funcion/enviar', async (req, res) => {
     // Assign version 1.0 on first send; keep existing version on subsequent sends
     const version = manual.version === 'Borrador' ? '1.0' : manual.version;
 
-    // Compare against the most recent obsoleto version to auto-approve unchanged blocks
-    const anterior = await Manual.findOne({
-      where: { organizacionId: req.user.organizacionId, funcion, estado: 'obsoleto' },
-      order: [['createdAt', 'DESC']],
-      attributes: ['contenido']
-    });
-    const contenidoAnterior = anterior?.contenido || null;
+    // Comparar contra la última versión aprobada para auto-aprobar bloques sin cambios
+    const contenidoAnterior = await getContenidoUltimaVigente(req.user.organizacionId, funcion, manual.id);
 
     const bloquesEstado = {};
     for (const bloque of Object.keys(manual.contenido || {})) {

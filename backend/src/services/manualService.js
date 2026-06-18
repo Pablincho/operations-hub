@@ -26,8 +26,9 @@ async function generarBloqueNuevo(funcion, nombreBloque, allQas) {
       role: 'user',
       content: `Sos redactor de manuales de puesto para una empresa agropecuaria argentina.
 A partir de las siguientes respuestas del ocupante del puesto de "${funcion}", redactá el bloque "${nombreBloque}" del manual de forma clara y profesional.
-Escribí en primera persona, como si fuera el propio ocupante describiendo su trabajo.
+El texto debe ser IMPERSONAL y descriptivo del puesto, en tercera persona. Nunca uses primera persona (nada de "mi", "yo", "me", "mis"). Ejemplo correcto: "El tesorero gestiona...", "El puesto requiere...", "Se espera que...".
 Sin títulos ni listas — solo prosa fluida.
+Cada respuesta corresponde a un aspecto distinto del puesto. Tratá cada una de forma independiente; no mezcles información entre respuestas.
 Separación numérica en español: punto para miles, coma para decimales (ej: 1.000 pesos, 10,5%).
 
 Respuestas del ocupante:
@@ -40,10 +41,16 @@ ${texto}`
   return response.choices[0].message.content.trim();
 }
 
-// Applies minimum changes to an existing block based only on the updated entries.
-async function actualizarBloqueMinimo(funcion, nombreBloque, existingText, newQas) {
-  const texto = newQas
-    .map(({ titulo, contenido }) => `P: ${titulo}\nR: ${contenido}`)
+// Applies minimum changes to an existing block.
+// Receives ALL Q&As for the block, marking which ones changed, so GPT can anchor
+// each changed entry to its corresponding prose fragment by semantic similarity.
+async function actualizarBloqueMinimo(funcion, nombreBloque, existingText, newQas, allQas) {
+  const changedTitles = new Set(newQas.map(q => q.titulo));
+  const texto = allQas
+    .map(({ titulo, contenido }) => {
+      const tag = changedTitles.has(titulo) ? '[MODIFICADA]' : '[SIN CAMBIOS]';
+      return `${tag} P: ${titulo}\nR: ${contenido}`;
+    })
     .join('\n\n');
 
   const response = await getOpenAI().chat.completions.create({
@@ -51,19 +58,19 @@ async function actualizarBloqueMinimo(funcion, nombreBloque, existingText, newQa
     messages: [{
       role: 'user',
       content: `Sos editor de manuales de puesto para una empresa agropecuaria argentina.
-Tu única tarea es hacer la modificación MÍNIMA al texto existente para reflejar los datos actualizados.
+Tu única tarea es hacer la modificación MÍNIMA al texto existente para reflejar las respuestas marcadas como [MODIFICADA].
 
 TEXTO ACTUAL DEL BLOQUE "${nombreBloque}" (puesto: ${funcion}):
 ${existingText}
 
-DATOS ACTUALIZADOS:
+TODAS LAS RESPUESTAS DEL BLOQUE (con su estado):
 ${texto}
 
 REGLAS ESTRICTAS:
-- Modificá ÚNICAMENTE las oraciones directamente relacionadas con los datos actualizados.
-- Conservá el resto del texto exactamente igual: misma redacción, misma puntuación, mismo formato numérico.
-- Si los datos actualizados eliminan información → removela del texto sin tocar lo demás.
-- Si los datos actualizados agregan información nueva → incorporala de forma mínima.
+- Las respuestas [SIN CAMBIOS] sirven como contexto para identificar qué fragmentos del texto NO debés tocar. Dejá exactamente esos fragmentos intactos: misma redacción, misma puntuación, mismo orden.
+- Para cada respuesta [MODIFICADA]: encontrá el fragmento del texto que habla de ESE tema y actualizalo con la nueva información. Si la respuesta eliminó información, eliminá esas oraciones. Si agregó información nueva, incorporala de forma mínima.
+- Nunca mezcles contenido entre respuestas distintas.
+- Si en las oraciones que modificás hay lenguaje en primera persona ("mi", "yo", "me", "mis") → reescribí solo esas oraciones en tercera persona impersonal ("El ${funcion}...", "El puesto requiere..."). No toques las demás.
 - Devolvé el texto completo con los cambios mínimos y nada más.`
     }],
     max_tokens: 1500,
@@ -78,7 +85,7 @@ REGLAS ESTRICTAS:
 async function generarBloque(funcion, nombreBloque, existingText, newQas, allQas) {
   if (existingText && newQas.length === 0) return existingText;
   if (!existingText) return generarBloqueNuevo(funcion, nombreBloque, allQas);
-  return actualizarBloqueMinimo(funcion, nombreBloque, existingText, newQas);
+  return actualizarBloqueMinimo(funcion, nombreBloque, existingText, newQas, allQas);
 }
 
 export async function generarManual(funcion, organizacionId, KnowledgeEntry, currentManual) {
