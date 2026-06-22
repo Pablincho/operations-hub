@@ -270,8 +270,8 @@ export default function Layout({ children }) {
       {/* Mobile nav */}
       <nav className="sm:hidden flex gap-1 px-3 py-2 border-b bg-white overflow-x-auto shrink-0">
         {[
-          { to: '/dashboard', label: 'Inicio', icon: LayoutDashboard, dot: false },
-          { to: '/manual', label: 'Mi Manual', icon: BookText, dot: tieneCheckin },
+          { to: '/dashboard', label: 'Inicio', icon: LayoutDashboard, dot: tieneCheckin },
+          { to: '/manual', label: 'Mi Manual', icon: BookText, dot: false },
           { to: '/asistente', label: 'Asistente', icon: Bot, dot: false },
         ].map(({ to, label, icon: Icon, dot }) => (
           <NavLink key={to} to={to}>

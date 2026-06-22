@@ -1,50 +1,68 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
+import { useNotifications } from '@/contexts/NotificationsContext'
 import api from '@/services/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
-import { FUNCIONES, FUNC_ICONS, FUNC_COLORS } from '@/lib/utils'
-import { Bot, BookText, CalendarCheck, ArrowRight } from 'lucide-react'
+import CheckinBlock from '@/components/CheckinBlock'
+import { FUNC_ICONS, FUNC_COLORS } from '@/lib/utils'
+import { Bot, BookText } from 'lucide-react'
 
 export default function Dashboard() {
   const { user, refreshUser } = useAuth()
+  const { refresh: refreshNotifications } = useNotifications()
   const navigate = useNavigate()
   const [progress, setProgress] = useState({})
-  const [checkinStatus, setCheckinStatus] = useState({})
+  const [todaySessions, setTodaySessions] = useState([])
+  const [onboardingStatus, setOnboardingStatus] = useState({})
+  const [dailyCounts, setDailyCounts] = useState({})
+  const [primaryStatusMap, setPrimaryStatusMap] = useState({})
   const [loading, setLoading] = useState(true)
 
   const funciones = user?.funciones || []
   const isAdmin = ['admin', 'superadmin'].includes(user?.rol)
 
-  useEffect(() => {
-    async function load() {
-      try {
-        await refreshUser()
-        const [progRes, checkinRes] = await Promise.all([
-          isAdmin ? api.get('/checkin/progreso') : Promise.resolve(null),
-          api.get('/checkin/hoy')
-        ])
-        setProgress(isAdmin ? progRes.data.data : (checkinRes.data.entryCounts || {}))
+  useEffect(() => { load() }, [])
 
-        // Build map of function → completed today
-        const todaySessions = checkinRes.data.data
-        const statusMap = {}
-        for (const s of todaySessions) {
-          statusMap[s.funcion] = s.completado
-        }
-        setCheckinStatus(statusMap)
-      } catch {
-        // ignore
-      } finally {
-        setLoading(false)
-      }
+  async function load() {
+    try {
+      await refreshUser()
+      const [progRes, checkinRes] = await Promise.all([
+        isAdmin ? api.get('/checkin/progreso') : Promise.resolve(null),
+        api.get('/checkin/hoy')
+      ])
+      setProgress(isAdmin ? progRes.data.data : (checkinRes.data.entryCounts || {}))
+      setTodaySessions(checkinRes.data.data || [])
+      setOnboardingStatus(checkinRes.data.onboardingStatus || {})
+      setDailyCounts(checkinRes.data.dailyCounts || {})
+      setPrimaryStatusMap(checkinRes.data.primaryStatusMap || {})
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false)
     }
-    load()
-  }, [])
+  }
 
-  const pendingCheckin = funciones.some(fn => !checkinStatus[fn])
+  function sessionForFuncion(fn) {
+    return todaySessions.find(s => s.funcion === fn) || null
+  }
+
+  // El check-in se responde únicamente desde acá (Inicio). Una función queda pendiente
+  // si el usuario es ocupante principal, no completó la sesión de hoy y no agotó los 20 días.
+  function checkinPendiente(fn) {
+    if (primaryStatusMap[fn] === false) return false
+    if ((dailyCounts[fn] || 0) >= 20) return false
+    return !sessionForFuncion(fn)?.completado
+  }
+
+  function handleCheckinComplete() {
+    load()
+    refreshNotifications()
+  }
+
+  const funcionesPendientes = funciones.filter(checkinPendiente)
+  const pendingCheckin = funcionesPendientes.length > 0
 
   return (
     <div className="max-w-4xl mx-auto p-6">
@@ -57,19 +75,21 @@ export default function Dashboard() {
         </p>
       </div>
 
-      {/* Check-in banner */}
-      {funciones.length > 0 && pendingCheckin && (
-        <div
-          onClick={() => navigate('/manual')}
-          className="flex items-center gap-3 p-4 rounded-xl mb-6 cursor-pointer hover:opacity-90 transition-opacity"
-          style={{ background: '#fff8e1', border: '1px solid #f0d060' }}
-        >
-          <CalendarCheck className="text-amber-600 shrink-0" size={20} />
-          <div className="flex-1">
-            <p className="font-semibold text-sm">Check-in diario pendiente</p>
-            <p className="text-xs text-muted-foreground">Respondé las 3 preguntas de hoy para construir la base de conocimiento</p>
-          </div>
-          <ArrowRight size={16} className="text-amber-600 shrink-0" />
+      {/* Check-in del día — se responde únicamente desde acá */}
+      {!loading && funcionesPendientes.length > 0 && (
+        <div className="mb-6">
+          {funcionesPendientes.map(fn => (
+            <CheckinBlock
+              key={fn}
+              funcion={fn}
+              color={FUNC_COLORS[fn] || '#1a3a1a'}
+              todaySession={sessionForFuncion(fn)}
+              onboardingDone={!!onboardingStatus[fn]}
+              diasCompletos={dailyCounts[fn] || 0}
+              onComplete={handleCheckinComplete}
+              isPrimary={primaryStatusMap[fn] ?? true}
+            />
+          ))}
         </div>
       )}
 
@@ -88,16 +108,13 @@ export default function Dashboard() {
         </Card>
         <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/manual')}>
           <CardContent className="flex items-center gap-3 p-4">
-            <div
-              className="w-10 h-10 rounded-lg flex items-center justify-center"
-              style={{ background: pendingCheckin ? '#fff8e1' : '#f0f7f0' }}
-            >
-              <BookText size={20} style={{ color: pendingCheckin ? '#c0922a' : '#1a3a1a' }} />
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: '#f0f7f0' }}>
+              <BookText size={20} style={{ color: '#1a3a1a' }} />
             </div>
             <div>
               <p className="font-semibold text-sm">Mi Manual</p>
               <p className="text-xs text-muted-foreground">
-                {pendingCheckin ? 'Check-in pendiente hoy' : 'Check-in completado ✓'}
+                {pendingCheckin ? 'Documentación de tu puesto' : 'Check-in al día ✓'}
               </p>
             </div>
           </CardContent>

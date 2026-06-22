@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { diffWords } from 'diff'
 import { pdf } from '@react-pdf/renderer'
 import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer'
 import api from '@/services/api'
 import { useAuth } from '@/contexts/AuthContext'
-import { useNotifications } from '@/contexts/NotificationsContext'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent } from '@/components/ui/card'
@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { FUNC_ICONS, FUNC_COLORS } from '@/lib/utils'
 import {
   Loader2, Download, Send, Sparkles, ChevronDown, ChevronUp,
-  Pencil, RefreshCw, BookOpen, CalendarCheck, CheckCircle2, RotateCcw, X, GitCompare, FileText
+  Pencil, CheckCircle2, RotateCcw, X, GitCompare, FileText, CalendarCheck, ArrowRight
 } from 'lucide-react'
 
 const LOGO_URL = 'https://res.cloudinary.com/dmigevwah/image/upload/f_png/v1777495745/don_emilio/don_emilio_logo'
@@ -231,128 +231,6 @@ function WordDiff({ oldText, newText }) {
         }}>{part.value}</span>
       ))}
     </p>
-  )
-}
-
-// ─── Check-in block ───────────────────────────────────────────────────────────
-function CheckinBlock({ funcion, color, todaySession, onboardingDone, diasCompletos, onComplete, isPrimary }) {
-  const [session, setSession] = useState(todaySession)
-  const [answers, setAnswers] = useState([])
-  const [loading, setLoading] = useState(false)
-  const [saving, setSaving] = useState(false)
-
-  useEffect(() => {
-    if (todaySession) {
-      setSession(todaySession)
-      setAnswers(todaySession.preguntas.map(p => p.respuesta || ''))
-    }
-  }, [todaySession])
-
-  // Hidden once completed today or when user is a read-only secondary occupant
-  if (session?.completado) return null
-  if (isPrimary === false) return null
-
-  const isOnboarding = session ? session.preguntas.length === 10 : !onboardingDone
-  const PhaseIcon = isOnboarding ? BookOpen : CalendarCheck
-  const phaseLabel = isOnboarding ? 'Preguntas iniciales' : `Día ${diasCompletos + 1} de 20`
-
-  async function startCheckin() {
-    setLoading(true)
-    try {
-      const res = await api.post('/checkin/iniciar', { funcion })
-      setSession(res.data.data)
-      setAnswers(res.data.data.preguntas.map(p => p.respuesta || ''))
-    } catch (err) {
-      alert(err.response?.data?.error || 'Error al iniciar check-in')
-    } finally { setLoading(false) }
-  }
-
-  async function saveAnswers() {
-    setSaving(true)
-    try {
-      await api.post(`/checkin/${session.id}/responder`, { respuestas: answers })
-      setSession(prev => ({
-        ...prev,
-        completado: true,
-        preguntas: prev.preguntas.map((p, i) => ({ ...p, respuesta: answers[i], respondida: true }))
-      }))
-      onComplete?.()
-    } catch (err) {
-      alert(err.response?.data?.error || 'Error al guardar respuestas')
-    } finally { setSaving(false) }
-  }
-
-  return (
-    <div className="mb-5 rounded-xl border border-amber-200 overflow-hidden" style={{ background: '#fffbf0' }}>
-      {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-amber-200" style={{ background: '#fff8e1' }}>
-        <PhaseIcon size={14} className="text-amber-600" />
-        <span className="text-xs font-semibold text-amber-800">Check-in de hoy · {phaseLabel}</span>
-      </div>
-
-      <div className="p-4">
-        {/* No session started */}
-        {!session && (
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-sm text-amber-900">
-              {!onboardingDone
-                ? 'Respondé las 10 preguntas iniciales para documentar tu función.'
-                : diasCompletos >= 20
-                  ? '¡Completaste los 20 días de documentación!'
-                  : 'Respondé las 3 preguntas de hoy para seguir documentando tu función.'}
-            </p>
-            {diasCompletos < 20 && (
-              <Button
-                onClick={startCheckin}
-                disabled={loading}
-                size="sm"
-                className="gap-1.5 shrink-0"
-                style={{ background: color, color: 'white' }}
-              >
-                {loading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-                Iniciar
-              </Button>
-            )}
-          </div>
-        )}
-
-        {/* Session in progress */}
-        {session && !session.completado && (
-          <div className="flex flex-col gap-4">
-            {isOnboarding && (
-              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
-                📋 Estas son las preguntas iniciales de tu función. Solo las hacemos una vez.
-              </p>
-            )}
-            {session.preguntas.map((p, i) => (
-              <div key={i}>
-                <label className="text-xs font-semibold block mb-1" style={{ color }}>
-                  {i + 1}. {p.pregunta}
-                </label>
-                <Textarea
-                  value={answers[i] || ''}
-                  onChange={e => {
-                    const copy = [...answers]
-                    copy[i] = e.target.value
-                    setAnswers(copy)
-                  }}
-                  rows={isOnboarding ? 2 : 3}
-                  placeholder="Tu respuesta..."
-                />
-              </div>
-            ))}
-            <Button
-              onClick={saveAnswers}
-              disabled={saving || answers.every(a => !a?.trim())}
-              style={{ background: color, color: 'white' }}
-            >
-              {saving && <Loader2 size={14} className="animate-spin mr-2" />}
-              Guardar respuestas
-            </Button>
-          </div>
-        )}
-      </div>
-    </div>
   )
 }
 
@@ -836,7 +714,7 @@ function EntradasSection({ funcion, color, refreshTrigger, manualEstado, generad
 // ─── Mi Manual page ───────────────────────────────────────────────────────────
 export default function MiManual() {
   const { user, refreshUser } = useAuth()
-  const { refresh: refreshNotifications } = useNotifications()
+  const navigate = useNavigate()
   const funciones = user?.funciones || []
   const [selectedFn, setSelectedFn] = useState('')
   const [initializing, setInitializing] = useState(true)
@@ -871,16 +749,11 @@ export default function MiManual() {
     return todaySessions.find(s => s.funcion === fn) || null
   }
 
+  // El check-in se responde únicamente desde Inicio; acá solo se refleja si hay pendiente.
   function checkinPendiente(fn) {
     if (primaryStatusMap[fn] === false) return false
     if ((dailyCounts[fn] || 0) >= 20) return false
     return !sessionForFuncion(fn)?.completado
-  }
-
-  function handleCheckinComplete() {
-    load()
-    setRefreshEntries(n => n + 1)
-    refreshNotifications()
   }
 
   if (initializing) {
@@ -944,17 +817,25 @@ export default function MiManual() {
 
       <Card>
         <CardContent className="p-5">
-          {/* 1 — Check-in block (hidden when done or user is secondary) */}
-          <CheckinBlock
-            key={selectedFn}
-            funcion={selectedFn}
-            color={color}
-            todaySession={sessionForFuncion(selectedFn)}
-            onboardingDone={!!onboardingStatus[selectedFn]}
-            diasCompletos={dailyCounts[selectedFn] || 0}
-            onComplete={handleCheckinComplete}
-            isPrimary={primaryStatusMap[selectedFn] ?? true}
-          />
+          {/* 1 — Aviso: el check-in se responde desde Inicio */}
+          {checkinPendiente(selectedFn) && (
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="w-full flex items-center gap-3 mb-5 px-4 py-3 rounded-xl text-left cursor-pointer hover:opacity-90 transition-opacity"
+              style={{ background: '#fff8e1', border: '1px solid #f0d060' }}
+            >
+              <CalendarCheck className="text-amber-600 shrink-0" size={18} />
+              <div className="flex-1">
+                <p className="font-semibold text-xs text-amber-900">
+                  {onboardingStatus[selectedFn]
+                    ? 'Tenés el check-in diario pendiente'
+                    : 'Tenés las preguntas iniciales pendientes'}
+                </p>
+                <p className="text-xs text-amber-700">Respondelo desde Inicio para seguir documentando tu función.</p>
+              </div>
+              <ArrowRight size={15} className="text-amber-600 shrink-0" />
+            </button>
+          )}
 
           {/* 2 — Manual */}
           <ManualSection
