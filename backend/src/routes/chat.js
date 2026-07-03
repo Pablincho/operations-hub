@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { Op } from 'sequelize';
 import { verifyJWT } from '../auth.js';
-import { ChatSession, ChatMessage, KnowledgeEntry, Manual } from '../models/index.js';
+import { ChatSession, ChatMessage, KnowledgeEntry, Manual, Usuario } from '../models/index.js';
 import { llamarAsistente } from '../services/openaiService.js';
 
 const router = Router();
@@ -189,7 +189,14 @@ router.post('/mensaje', async (req, res) => {
       });
     }
 
-    const { reply, usedSensitive } = await llamarAsistente(req.user, manuales, fallbackEntries, sensibleEntries, history, mensaje.trim());
+    // Directorio de personas: mapea nombre → funciones para que el asistente
+    // pueda asociar nombres mencionados en respuestas con su puesto en la empresa.
+    const ocupantes = await Usuario.findAll({
+      where: { organizacionId: req.user.organizacionId, activo: true },
+      attributes: ['nombre', 'funciones', 'rol']
+    });
+
+    const { reply, usedSensitive } = await llamarAsistente(req.user, manuales, fallbackEntries, sensibleEntries, history, mensaje.trim(), ocupantes);
 
     let assistantMsg = null;
     if (!usedSensitive) {

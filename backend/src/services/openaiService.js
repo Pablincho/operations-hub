@@ -24,7 +24,7 @@ const BLOQUE_NOMBRES = {
   B6: 'Herramientas y sistemas'
 };
 
-export async function llamarAsistente(user, manuales, fallbackEntries, sensibleEntries, history, mensajeActual) {
+export async function llamarAsistente(user, manuales, fallbackEntries, sensibleEntries, history, mensajeActual, ocupantes = []) {
   const funciones = user.funciones?.length
     ? user.funciones.map(f => FUNC_LABELS[f] || f).join(', ')
     : 'consultas generales';
@@ -55,10 +55,25 @@ export async function llamarAsistente(user, manuales, fallbackEntries, sensibleE
 
   const contexto = (manualesText + fallbackText + sensibleText) || 'Sin información cargada todavía para estas funciones.';
 
+  // Directorio de personas: nombre → puesto (funciones asignadas, o rol si no tiene funciones)
+  const directorioLines = ocupantes
+    .filter(o => o.nombre)
+    .map(o => {
+      const puestos = (o.funciones || []).length > 0
+        ? o.funciones.join(', ')
+        : o.rol === 'superadmin' ? 'Gerente General' : null;
+      return puestos ? `- ${o.nombre} → ${puestos}` : null;
+    })
+    .filter(Boolean);
+
+  const directorioSection = directorioLines.length > 0
+    ? `\n\nDIRECTORIO DE PERSONAS (Don Emilio):\n${directorioLines.join('\n')}\nCuando menciones a alguna de estas personas en una respuesta, indicá entre paréntesis su función en la empresa (ej: "Danilo Marchisone (Gerente General)").`
+    : '';
+
   const systemPrompt = `Sos el asistente operativo de Don Emilio, empresa agropecuaria argentina. Especializado en: ${funciones}.
 
 BASE DE CONOCIMIENTO DISPONIBLE:
-${contexto}
+${contexto}${directorioSection}
 
 REGLAS ESTRICTAS:
 - Respondé EXCLUSIVAMENTE usando la base de conocimiento provista arriba.
