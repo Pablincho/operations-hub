@@ -65,10 +65,12 @@ export default function Admin() {
     }
   }
 
-  async function changeSupervisor(u, supervisorId) {
+  async function changeSupervisor(u, value) {
+    const autoaprobarManual = value === '__auto__'
+    const supervisorId = autoaprobarManual ? null : (value || null)
     try {
-      await api.patch(`/usuarios/${u.id}/supervisor`, { supervisorId: supervisorId || null })
-      setUsers(prev => prev.map(x => x.id === u.id ? { ...x, supervisorId: supervisorId || null } : x))
+      await api.patch(`/usuarios/${u.id}/supervisor`, { supervisorId, autoaprobarManual })
+      setUsers(prev => prev.map(x => x.id === u.id ? { ...x, supervisorId, autoaprobarManual } : x))
     } catch (err) {
       alert(err.response?.data?.error || 'Error')
     }
@@ -233,6 +235,7 @@ export default function Admin() {
                       </Badge>
                       {!u.activo && <Badge variant="destructive" className="text-xs">inactivo</Badge>}
                       {u.enVacaciones && <Badge className="text-xs bg-sky-100 text-sky-700 border-sky-200">🌴 vacaciones</Badge>}
+                      {u.autoaprobarManual && <Badge className="text-xs bg-purple-100 text-purple-700 border-purple-200">⚡ autoaprobación</Badge>}
                     </div>
                     <p className="text-xs text-muted-foreground">{u.email}</p>
 
@@ -240,11 +243,12 @@ export default function Admin() {
                     <div className="mt-2 flex items-center gap-2">
                       <span className="text-xs text-muted-foreground shrink-0">Supervisor:</span>
                       <select
-                        value={u.supervisorId || ''}
+                        value={u.autoaprobarManual ? '__auto__' : (u.supervisorId || '')}
                         onChange={e => changeSupervisor(u, e.target.value)}
                         className="text-xs border rounded px-2 py-0.5 bg-background flex-1 min-w-0"
                       >
                         <option value="">Sin supervisor</option>
+                        <option value="__auto__">Autoaprobación (sin revisor)</option>
                         {users
                           .filter(s => ['admin', 'superadmin'].includes(s.rol) && s.id !== u.id)
                           .map(s => (

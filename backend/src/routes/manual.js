@@ -253,13 +253,8 @@ router.post('/:funcion/enviar', async (req, res) => {
     }
 
     const usuario = await Usuario.findByPk(req.user.id);
-    if (!usuario?.supervisorId) {
-      return res.status(400).json({ success: false, error: 'No tenés supervisor asignado. Pedile al administrador que te asigne uno.' });
-    }
-
-    const supervisor = await Usuario.findByPk(usuario.supervisorId);
-    if (!supervisor) {
-      return res.status(400).json({ success: false, error: 'Supervisor no encontrado.' });
+    if (!usuario?.autoaprobarManual && !usuario?.supervisorId) {
+      return res.status(400).json({ success: false, error: 'No tenés supervisor asignado. Pedile al administrador que te asigne uno o active la autoaprobación.' });
     }
 
     // Block re-send if the manual was returned and not yet regenerated
@@ -284,6 +279,29 @@ router.post('/:funcion/enviar', async (req, res) => {
       const prevTexto = contenidoAnterior?.[bloque];
       const modificado = !prevTexto || prevTexto.trim() !== manual.contenido[bloque].trim();
       bloquesEstado[bloque] = { estado: modificado ? 'en_revision' : 'aprobado', observacion: null };
+    }
+
+    // Sin revisor asignado (ej: Gerente General): publica directo, sin pasar por en_revision.
+    if (usuario.autoaprobarManual) {
+      const bloquesEstadoAprobados = {};
+      for (const bloque of Object.keys(bloquesEstado)) {
+        bloquesEstadoAprobados[bloque] = { estado: 'aprobado', observacion: null };
+      }
+      await manual.update({
+        estado: 'vigente',
+        version,
+        notaEnvio: nota?.trim() || null,
+        observaciones: null,
+        bloquesEstado: bloquesEstadoAprobados,
+        aprobadoPor: req.user.id,
+        aprobadoEn: new Date()
+      });
+      return res.json({ success: true, data: manual });
+    }
+
+    const supervisor = await Usuario.findByPk(usuario.supervisorId);
+    if (!supervisor) {
+      return res.status(400).json({ success: false, error: 'Supervisor no encontrado.' });
     }
 
     await manual.update({

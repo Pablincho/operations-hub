@@ -236,6 +236,8 @@ function WordDiff({ oldText, newText }) {
 
 // ─── Manual section ───────────────────────────────────────────────────────────
 function ManualSection({ funcion, color, onManualEstado, isPrimary, autoRegenTrigger }) {
+  const { user } = useAuth()
+  const autoaprobarManual = !!user?.autoaprobarManual
   const [manual, setManual] = useState(null)
   const [historial, setHistorial] = useState([])
   const [loading, setLoading] = useState(true)
@@ -366,7 +368,7 @@ function ManualSection({ funcion, color, onManualEstado, isPrimary, autoRegenTri
                 ) : (
                   <Button size="sm" variant="outline" onClick={() => setShowEnviarDialog(true)} className="gap-1 text-xs h-7 border-blue-300 text-blue-700 hover:bg-blue-50">
                     <Send size={12} />
-                    Enviar a aprobación
+                    {autoaprobarManual ? 'Publicar manual' : 'Enviar a aprobación'}
                   </Button>
                 )
               })()}
@@ -503,19 +505,21 @@ function ManualSection({ funcion, color, onManualEstado, isPrimary, autoRegenTri
 
       <Dialog open={showEnviarDialog} onOpenChange={setShowEnviarDialog}>
         <DialogContent aria-describedby={undefined}>
-          <DialogHeader><DialogTitle>Enviar manual a aprobación</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{autoaprobarManual ? 'Publicar manual' : 'Enviar manual a aprobación'}</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Tu manual de <strong>{funcion}</strong> (v{manual?.version}) será enviado a tu supervisor para revisión. No podrás editarlo hasta recibir respuesta.
+            {autoaprobarManual
+              ? <>Tu manual de <strong>{funcion}</strong> (v{manual?.version}) quedará vigente de inmediato. No tenés un revisor asignado, así que se publica directamente.</>
+              : <>Tu manual de <strong>{funcion}</strong> (v{manual?.version}) será enviado a tu supervisor para revisión. No podrás editarlo hasta recibir respuesta.</>}
           </p>
           <div>
-            <label className="text-xs font-medium mb-1 block">Nota para el revisor (opcional)</label>
+            <label className="text-xs font-medium mb-1 block">{autoaprobarManual ? 'Nota (opcional)' : 'Nota para el revisor (opcional)'}</label>
             <Textarea placeholder="Agregá contexto o comentarios relevantes..." value={notaEnvio} onChange={e => setNotaEnvio(e.target.value)} rows={3} />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setShowEnviarDialog(false); setNotaEnvio('') }}>Cancelar</Button>
             <Button onClick={enviarAAprobacion} disabled={sending} className="gap-1" style={{ background: color, color: 'white' }}>
               {sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-              Enviar
+              {autoaprobarManual ? 'Publicar' : 'Enviar'}
             </Button>
           </DialogFooter>
         </DialogContent>

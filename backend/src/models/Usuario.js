@@ -59,6 +59,11 @@ export function UsuarioModel(sequelize) {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
       allowNull: false
+    },
+    autoaprobarManual: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      allowNull: false
     }
   });
 }

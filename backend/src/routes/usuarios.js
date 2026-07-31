@@ -299,10 +299,10 @@ router.patch('/funciones/:funcion/principal', requireAdmin, async (req, res) => 
   }
 });
 
-// PATCH assign supervisor
+// PATCH assign supervisor (or mark self-approval for occupants with no reviewer, e.g. Gerente General)
 router.patch('/:id/supervisor', requireAdmin, async (req, res) => {
   try {
-    const { supervisorId } = req.body;
+    const { supervisorId, autoaprobarManual } = req.body;
 
     if (supervisorId === req.params.id) {
       return res.status(400).json({ success: false, error: 'Un usuario no puede ser su propio supervisor' });
@@ -313,6 +313,14 @@ router.patch('/:id/supervisor', requireAdmin, async (req, res) => {
     });
     if (!usuario) return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
 
+    if (autoaprobarManual) {
+      if (supervisorId) {
+        return res.status(400).json({ success: false, error: 'No podés asignar supervisor y autoaprobación al mismo tiempo' });
+      }
+      await usuario.update({ supervisorId: null, autoaprobarManual: true });
+      return res.json({ success: true, data: { supervisorId: null, autoaprobarManual: true } });
+    }
+
     if (supervisorId) {
       const supervisor = await Usuario.findOne({
         where: { id: supervisorId, organizacionId: req.user.organizacionId }
@@ -320,8 +328,8 @@ router.patch('/:id/supervisor', requireAdmin, async (req, res) => {
       if (!supervisor) return res.status(404).json({ success: false, error: 'Supervisor no encontrado' });
     }
 
-    await usuario.update({ supervisorId: supervisorId || null });
-    res.json({ success: true, data: { supervisorId: usuario.supervisorId } });
+    await usuario.update({ supervisorId: supervisorId || null, autoaprobarManual: false });
+    res.json({ success: true, data: { supervisorId: usuario.supervisorId, autoaprobarManual: false } });
   } catch {
     res.status(500).json({ success: false, error: 'Error interno' });
   }
