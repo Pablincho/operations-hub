@@ -193,6 +193,24 @@ router.patch('/:id/activo', requireAdmin, async (req, res) => {
   }
 });
 
+// PATCH toggle vacaciones
+router.patch('/:id/vacaciones', requireAdmin, async (req, res) => {
+  try {
+    const { enVacaciones } = req.body;
+    if (typeof enVacaciones !== 'boolean') {
+      return res.status(400).json({ success: false, error: 'enVacaciones debe ser booleano' });
+    }
+    const usuario = await Usuario.findOne({
+      where: { id: req.params.id, organizacionId: req.user.organizacionId }
+    });
+    if (!usuario) return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
+    await usuario.update({ enVacaciones });
+    res.json({ success: true, data: { enVacaciones } });
+  } catch {
+    res.status(500).json({ success: false, error: 'Error interno' });
+  }
+});
+
 // PATCH change password
 router.patch('/:id/password', requireAdmin, async (req, res) => {
   try {

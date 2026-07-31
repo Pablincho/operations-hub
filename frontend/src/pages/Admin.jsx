@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { FUNCIONES, FUNC_ICONS, FUNC_COLORS } from '@/lib/utils'
-import { Plus, UserCheck, UserX, Key, Trash2, CheckCircle2, Bug, ChevronDown, ChevronUp, CheckCheck, Trash, ZoomIn, ZoomOut, X } from 'lucide-react'
+import { Plus, UserCheck, UserX, Key, Trash2, CheckCircle2, Bug, ChevronDown, ChevronUp, CheckCheck, Trash, ZoomIn, ZoomOut, X, Palmtree } from 'lucide-react'
 
 export default function Admin() {
   const { user } = useAuth()
@@ -98,6 +98,15 @@ export default function Admin() {
     try {
       await api.patch(`/usuarios/${u.id}/activo`, { activo: !u.activo })
       setUsers(prev => prev.map(x => x.id === u.id ? { ...x, activo: !u.activo } : x))
+    } catch (err) {
+      alert(err.response?.data?.error || 'Error')
+    }
+  }
+
+  async function toggleVacaciones(u) {
+    try {
+      await api.patch(`/usuarios/${u.id}/vacaciones`, { enVacaciones: !u.enVacaciones })
+      setUsers(prev => prev.map(x => x.id === u.id ? { ...x, enVacaciones: !u.enVacaciones } : x))
     } catch (err) {
       alert(err.response?.data?.error || 'Error')
     }
@@ -223,6 +232,7 @@ export default function Admin() {
                         {u.rol}
                       </Badge>
                       {!u.activo && <Badge variant="destructive" className="text-xs">inactivo</Badge>}
+                      {u.enVacaciones && <Badge className="text-xs bg-sky-100 text-sky-700 border-sky-200">🌴 vacaciones</Badge>}
                     </div>
                     <p className="text-xs text-muted-foreground">{u.email}</p>
 
@@ -276,6 +286,13 @@ export default function Admin() {
                   <div className="flex items-center gap-1 shrink-0">
                     {u.id !== user?.id && (
                       <>
+                        <button
+                          onClick={() => toggleVacaciones(u)}
+                          title={u.enVacaciones ? 'Quitar vacaciones' : 'Marcar en vacaciones'}
+                          className={`p-1.5 rounded-lg transition-colors ${u.enVacaciones ? 'text-sky-500 hover:text-sky-700 bg-sky-50 hover:bg-sky-100' : 'text-muted-foreground hover:text-sky-600 hover:bg-muted'}`}
+                        >
+                          <Palmtree size={15} />
+                        </button>
                         <button
                           onClick={() => toggleActive(u)}
                           title={u.activo ? 'Desactivar' : 'Activar'}

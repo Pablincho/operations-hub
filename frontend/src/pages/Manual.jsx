@@ -750,7 +750,9 @@ export default function MiManual() {
   }
 
   // El check-in se responde únicamente desde Inicio; acá solo se refleja si hay pendiente.
+  // Si el usuario está de vacaciones, no se muestra nada.
   function checkinPendiente(fn) {
+    if (user?.enVacaciones) return false
     if (primaryStatusMap[fn] === false) return false
     if ((dailyCounts[fn] || 0) >= 20) return false
     return !sessionForFuncion(fn)?.completado

@@ -7,6 +7,28 @@ import { generarPreguntasIA } from './openaiService.js';
 // B6 = Herramientas y sistemas
 
 export const BASE_QUESTIONS = {
+  'Gerente General': [
+    { pregunta: '¿Cómo es tu proceso de revisión de resultados mensuales de la empresa?', bloque: 'B4' },
+    { pregunta: '¿Qué reuniones fijas tenés con cada área y con qué frecuencia?', bloque: 'B4' },
+    { pregunta: '¿Cuáles son los límites de gasto o inversión que podés aprobar sin consultar a los propietarios?', bloque: 'B2' },
+    { pregunta: '¿Con qué bancos trabaja la empresa y quién es tu contacto en cada uno?', bloque: 'B5' },
+    { pregunta: '¿Cómo hacés el seguimiento del flujo de caja consolidado de todas las áreas?', bloque: 'B4' },
+    { pregunta: '¿Con qué escribanos o estudios jurídicos trabaja la empresa habitualmente?', bloque: 'B5' },
+    { pregunta: '¿Cómo evaluás el desempeño de cada responsable de área?', bloque: 'B4' },
+    { pregunta: '¿Qué herramientas usás para hacer seguimiento de indicadores o KPIs de la empresa?', bloque: 'B6' },
+    { pregunta: '¿Cómo es el proceso de aprobación de una inversión grande (maquinaria, campo, etc.)?', bloque: 'B4' },
+    { pregunta: '¿Con qué organismos públicos o entidades tenés relación directa (municipio, INTA, etc.)?', bloque: 'B5' },
+    { pregunta: '¿Cómo manejás una situación de conflicto entre dos áreas de la empresa?', bloque: 'B4' },
+    { pregunta: '¿Qué decisiones delegás completamente en tus reportes directos y cuáles no?', bloque: 'B2' },
+    { pregunta: '¿Cómo es el proceso de cierre de balance anual de la empresa?', bloque: 'B4' },
+    { pregunta: '¿Con qué frecuencia y de qué forma informás a los propietarios sobre la marcha de la empresa?', bloque: 'B5' },
+    { pregunta: '¿Cómo seguís el estado de las distintas cuentas bancarias y empresas del grupo?', bloque: 'B4' },
+    { pregunta: '¿Qué sistemas usás para comunicarte con el equipo y hacer seguimiento de tareas?', bloque: 'B6' },
+    { pregunta: '¿Qué parte de tu rol te llevó más tiempo aprender cuando asumiste el puesto?', bloque: 'B3' },
+    { pregunta: '¿Cómo actuás ante un imprevisto grave (problema legal, financiero, operativo)?', bloque: 'B4' },
+    { pregunta: '¿Con qué clientes o proveedores clave mantenés relación directa vos mismo?', bloque: 'B5' },
+    { pregunta: '¿Qué tareas del día a día delegarías si tuvieras más tiempo?', bloque: 'B2' }
+  ],
   Tesorería: [
     { pregunta: '¿Cuál es el primer paso para pagar una factura a un proveedor?', bloque: 'B4' },
     { pregunta: '¿Qué datos necesitás tener del proveedor antes de hacer una transferencia?', bloque: 'B4' },

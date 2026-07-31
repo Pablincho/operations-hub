@@ -54,6 +54,11 @@ export function UsuarioModel(sequelize) {
     supervisorId: {
       type: DataTypes.UUID,
       allowNull: true
+    },
+    enVacaciones: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      allowNull: false
     }
   });
 }

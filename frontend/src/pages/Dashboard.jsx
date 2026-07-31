@@ -61,7 +61,9 @@ export default function Dashboard() {
     refreshNotifications()
   }
 
-  const funcionesPendientes = funciones.filter(checkinPendiente)
+  // Si el usuario está de vacaciones, nunca mostramos check-in pendiente
+  const enVacaciones = !!user?.enVacaciones
+  const funcionesPendientes = enVacaciones ? [] : funciones.filter(checkinPendiente)
   const pendingCheckin = funcionesPendientes.length > 0
 
   return (
