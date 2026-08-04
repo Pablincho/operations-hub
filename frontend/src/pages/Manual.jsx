@@ -10,16 +10,17 @@ import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { FUNC_ICONS, FUNC_COLORS } from '@/lib/utils'
+import { useTour } from '@/lib/tour'
 import {
   Loader2, Download, Send, Sparkles, ChevronDown, ChevronUp,
-  Pencil, CheckCircle2, RotateCcw, X, GitCompare, FileText, CalendarCheck, ArrowRight
+  Pencil, CheckCircle2, RotateCcw, X, GitCompare, FileText, CalendarCheck, ArrowRight, HelpCircle
 } from 'lucide-react'
 
 const LOGO_URL = 'https://res.cloudinary.com/dmigevwah/image/upload/f_png/v1777495745/don_emilio/don_emilio_logo'
 
 const pdfStyles = StyleSheet.create({
   page: { padding: 48, paddingBottom: 72, fontFamily: 'Helvetica', fontSize: 10, color: '#222' },
-  // Control documental — compact single-line header
+  // Control documental: compact single-line header
   docControlBar: { borderBottom: '0.5pt solid #ddd', paddingBottom: 5, marginBottom: 14 },
   docControlText: { fontSize: 7.5, color: '#aaa' },
   header: { marginBottom: 16, borderBottom: '1pt solid #1a3a1a', paddingBottom: 14 },
@@ -31,7 +32,7 @@ const pdfStyles = StyleSheet.create({
   b0Cell: { flex: 1 },
   b0Label: { fontSize: 7.5, color: '#888', marginBottom: 1 },
   b0Value: { fontSize: 9, fontFamily: 'Helvetica-Bold', color: '#333' },
-  // B1 — Identificación
+  // B1: Identificación
   b1Box: { marginBottom: 16 },
   b1Row: { flexDirection: 'row', marginBottom: 3 },
   b1Label: { fontSize: 9, color: '#888', width: 110 },
@@ -73,12 +74,12 @@ const ESTADO_PDF = {
 }
 
 function fmtDate(d) {
-  if (!d) return '—'
+  if (!d) return '-'
   return new Date(d).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
 function fmtDateTime(d) {
-  if (!d) return '—'
+  if (!d) return '-'
   return new Date(d).toLocaleString('es-AR', {
     timeZone: 'America/Argentina/Buenos_Aires',
     day: 'numeric', month: 'long', year: 'numeric',
@@ -125,7 +126,7 @@ function ManualPDF({ funcion, manual, historial = [] }) {
     <Document>
       {/* ── Contenido principal ── */}
       <Page size="A4" style={pdfStyles.page}>
-        {/* Control documental — encabezado compacto en una sola línea */}
+        {/* Control documental: encabezado compacto en una sola línea */}
         <View style={pdfStyles.docControlBar}>
           <Text style={pdfStyles.docControlText}>{docControlParts}</Text>
         </View>
@@ -138,7 +139,7 @@ function ManualPDF({ funcion, manual, historial = [] }) {
           <Text style={pdfStyles.title}>Manual de Puesto: {funcion}</Text>
         </View>
 
-        {/* B1 — Identificación del puesto */}
+        {/* B1: Identificación del puesto */}
         <View style={pdfStyles.bloque}>
           <Text style={pdfStyles.bloqueTitle}>Identificación del puesto</Text>
           <View style={pdfStyles.b1Box}>
@@ -167,7 +168,7 @@ function ManualPDF({ funcion, manual, historial = [] }) {
           </View>
         ))}
 
-        {/* Firma digital — solo en manuales vigentes */}
+        {/* Firma digital: solo en manuales vigentes */}
         {estado === 'vigente' && aprobadoEn && (
           <View style={pdfStyles.firmaBox}>
             <Text style={pdfStyles.firmaTitulo}>Registro de aprobación</Text>
@@ -184,7 +185,7 @@ function ManualPDF({ funcion, manual, historial = [] }) {
               </View>
             </View>
             <Text style={pdfStyles.firmaNote}>
-              Este registro es inmutable. Sistema: REMI — Registro de Experiencia y Memoria Institucional · Don Emilio
+              Este registro es inmutable. Sistema: Registro de Experiencia y Memoria Institucional (REMI) · Don Emilio
             </Text>
           </View>
         )}
@@ -192,7 +193,7 @@ function ManualPDF({ funcion, manual, historial = [] }) {
         <PageFooter />
       </Page>
 
-      {/* ── Historial de versiones — última página aparte ── */}
+      {/* ── Historial de versiones: última página aparte ── */}
       {historial.length > 0 && (
         <Page size="A4" style={pdfStyles.page}>
           <View style={pdfStyles.bloque}>
@@ -347,7 +348,7 @@ function ManualSection({ funcion, color, onManualEstado, isPrimary, autoRegenTri
             <span className="text-xs text-muted-foreground px-2 py-1 bg-muted rounded-lg">Solo lectura</span>
           )}
           {isPrimary !== false && manual?.estado !== 'en_revision' && (
-            <Button size="sm" onClick={generarOActualizar} disabled={generating} className="gap-1 text-xs h-7" style={{ background: color, color: 'white' }}>
+            <Button data-tour="manual-generar" size="sm" onClick={generarOActualizar} disabled={generating} className="gap-1 text-xs h-7" style={{ background: color, color: 'white' }}>
               {generating ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
               {manual ? 'Actualizar' : 'Generar manual'}
             </Button>
@@ -366,7 +367,7 @@ function ManualSection({ funcion, color, onManualEstado, isPrimary, autoRegenTri
                     Actualizá el manual antes de reenviar
                   </span>
                 ) : (
-                  <Button size="sm" variant="outline" onClick={() => setShowEnviarDialog(true)} className="gap-1 text-xs h-7 border-blue-300 text-blue-700 hover:bg-blue-50">
+                  <Button data-tour="manual-enviar" size="sm" variant="outline" onClick={() => setShowEnviarDialog(true)} className="gap-1 text-xs h-7 border-blue-300 text-blue-700 hover:bg-blue-50">
                     <Send size={12} />
                     {autoaprobarManual ? 'Publicar manual' : 'Enviar a aprobación'}
                   </Button>
@@ -443,32 +444,34 @@ function ManualSection({ funcion, color, onManualEstado, isPrimary, autoRegenTri
             </div>
           )}
 
-          {bloques.map(([key, nombre]) => {
-            const cambiado = bloqueCambiado(key)
-            return (
-            <div key={key} className="border rounded-lg overflow-hidden">
-              <button
-                className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-left hover:bg-muted/50 transition-colors"
-                style={{ color: cambiado ? '#b45309' : color }}
-                onClick={() => setExpanded(e => ({ ...e, [key]: !e[key] }))}
-              >
-                <span className="flex items-center gap-1.5">
-                  {cambiado && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" title="Bloque con cambios" />}
-                  {nombre}
-                </span>
-                {expanded[key] ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-              </button>
-              {expanded[key] && (
-                <div className="px-3 pb-3 pt-2 border-t bg-muted/20 text-muted-foreground">
-                  {contenidoAnterior && showDiff && manual?.estado !== 'vigente'
-                    ? <WordDiff oldText={maskEncrypted(contenidoAnterior[key] || null)} newText={maskEncrypted(manual.contenido[key])} />
-                    : <p className="text-xs leading-relaxed whitespace-pre-wrap">{maskEncrypted(manual.contenido[key])}</p>
-                  }
-                </div>
-              )}
-            </div>
-            )
-          })}
+          <div data-tour="manual-bloques" className="flex flex-col gap-2">
+            {bloques.map(([key, nombre]) => {
+              const cambiado = bloqueCambiado(key)
+              return (
+              <div key={key} className="border rounded-lg overflow-hidden">
+                <button
+                  className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-left hover:bg-muted/50 transition-colors"
+                  style={{ color: cambiado ? '#b45309' : color }}
+                  onClick={() => setExpanded(e => ({ ...e, [key]: !e[key] }))}
+                >
+                  <span className="flex items-center gap-1.5">
+                    {cambiado && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" title="Bloque con cambios" />}
+                    {nombre}
+                  </span>
+                  {expanded[key] ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                </button>
+                {expanded[key] && (
+                  <div className="px-3 pb-3 pt-2 border-t bg-muted/20 text-muted-foreground">
+                    {contenidoAnterior && showDiff && manual?.estado !== 'vigente'
+                      ? <WordDiff oldText={maskEncrypted(contenidoAnterior[key] || null)} newText={maskEncrypted(manual.contenido[key])} />
+                      : <p className="text-xs leading-relaxed whitespace-pre-wrap">{maskEncrypted(manual.contenido[key])}</p>
+                    }
+                  </div>
+                )}
+              </div>
+              )
+            })}
+          </div>
 
           {manual.observaciones && (
             <div className="mt-2 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
@@ -630,7 +633,7 @@ function EntradasSection({ funcion, color, refreshTrigger, manualEstado, generad
   if (!loading && entries.length === 0) return null
 
   return (
-    <div className="mt-5 pt-4 border-t">
+    <div className="mt-5 pt-4 border-t" data-tour="manual-entradas">
       <button
         className="flex items-center gap-1.5 text-xs font-medium hover:opacity-80 transition-opacity"
         style={{ color }}
@@ -762,6 +765,67 @@ export default function MiManual() {
     return !sessionForFuncion(fn)?.completado
   }
 
+  // Los bloques del manual y las respuestas anteriores viven en secciones hijas que
+  // hacen su propio fetch tras montar, así que les damos más margen que al Dashboard
+  // antes de medir qué elementos ya están pintados.
+  const autoaprobarManualUser = !!user?.autoaprobarManual
+  const { replay: verTour } = useTour({
+    tourId: 'manual',
+    userId: user?.id,
+    listo: !initializing && !!user,
+    delayMs: 700,
+    steps: [
+      {
+        popover: {
+          title: 'Mi Manual',
+          description: 'Con tus respuestas del check-in se arma solo el manual de tu puesto. Te muestro cómo generarlo, editarlo y enviarlo a aprobación.'
+        }
+      },
+      {
+        element: '[data-tour="manual-tabs"]',
+        popover: {
+          title: 'Tus funciones',
+          description: 'Si tenés más de una función asignada, cambiás acá entre los manuales de cada una. Cada una tiene su propio progreso y su propio manual.',
+          side: 'bottom'
+        }
+      },
+      {
+        element: '[data-tour="manual-generar"]',
+        popover: {
+          title: 'Generar o actualizar',
+          description: '"Generar manual" arma el borrador la primera vez. Después, cada vez que respondas preguntas nuevas en el check-in vas a ver "Actualizar": solo reescribe los bloques que tienen respuestas nuevas o editadas, el resto queda intacto.',
+          side: 'bottom'
+        }
+      },
+      {
+        element: '[data-tour="manual-bloques"]',
+        popover: {
+          title: 'Bloques del manual',
+          description: 'El contenido está organizado en bloques (funciones, procesos, herramientas, etc). Click en cada uno para expandirlo. El punto naranja junto al título marca los bloques con cambios todavía no enviados, y podés alternar entre ver "Cambios" (resaltados) o el "Texto" final.',
+          side: 'top'
+        }
+      },
+      {
+        element: '[data-tour="manual-enviar"]',
+        popover: {
+          title: autoaprobarManualUser ? 'Publicar manual' : 'Enviar a aprobación',
+          description: autoaprobarManualUser
+            ? 'No tenés un revisor asignado, así que acá lo publicás vos mismo: al confirmar, el manual queda "Vigente" de inmediato, sin pasar por revisión.'
+            : 'Cuando esté listo, hacé click acá: podés agregar una nota opcional para tu supervisor y confirmar el envío. Mientras diga "En revisión" no vas a poder editarlo. Si te lo devuelve, vas a ver sus observaciones arriba de los bloques y vas a poder corregir y reenviar.',
+          side: 'bottom'
+        }
+      },
+      {
+        element: '[data-tour="manual-entradas"]',
+        popover: {
+          title: 'Respuestas anteriores',
+          description: 'Acá está cada respuesta que diste en el check-in. Click en el lápiz para editarla, escribí el cambio y tocá "Guardar". Las respuestas editadas quedan resaltadas: en ámbar mientras el manual todavía no las incorporó, y en verde una vez que las incorporaste con "Actualizar". Podés descartar un cambio con la X para volver a la respuesta original.',
+          side: 'top'
+        }
+      }
+    ]
+  })
+
   if (initializing) {
     return <div className="max-w-3xl mx-auto p-6"><p className="text-muted-foreground text-sm">Cargando...</p></div>
   }
@@ -783,14 +847,24 @@ export default function MiManual() {
 
   return (
     <div className="max-w-3xl mx-auto p-6">
-      <div className="mb-5">
-        <h1 className="text-xl font-bold" style={{ color: '#1a3a1a' }}>Mi Manual</h1>
-        <p className="text-sm text-muted-foreground">Acá encontrarás la documentación de tu puesto y lo que tengas pendiente de completar.</p>
+      <div className="mb-5 flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold" style={{ color: '#1a3a1a' }}>Mi Manual</h1>
+          <p className="text-sm text-muted-foreground">Acá encontrarás la documentación de tu puesto y lo que tengas pendiente de completar.</p>
+        </div>
+        <button
+          onClick={verTour}
+          title="Ver cómo funciona"
+          className="flex items-center gap-1.5 shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+        >
+          <HelpCircle size={14} />
+          ¿Cómo funciona?
+        </button>
       </div>
 
       {/* Function tabs */}
       {funciones.length > 1 && (
-        <div className="flex flex-wrap gap-2 mb-5">
+        <div className="flex flex-wrap gap-2 mb-5" data-tour="manual-tabs">
           {funciones.map(fn => {
             const pending = checkinPendiente(fn)
             return (
@@ -823,7 +897,7 @@ export default function MiManual() {
 
       <Card>
         <CardContent className="p-5">
-          {/* 1 — Aviso: el check-in se responde desde Inicio */}
+          {/* 1: Aviso: el check-in se responde desde Inicio */}
           {checkinPendiente(selectedFn) && (
             <button
               onClick={() => navigate('/dashboard')}
@@ -843,7 +917,7 @@ export default function MiManual() {
             </button>
           )}
 
-          {/* 2 — Manual */}
+          {/* 2: Manual */}
           <ManualSection
             funcion={selectedFn}
             color={color}
@@ -855,7 +929,7 @@ export default function MiManual() {
             autoRegenTrigger={autoRegenTrigger}
           />
 
-          {/* 3 — Previous answers */}
+          {/* 3: Previous answers */}
           {(onboardingStatus[selectedFn] || primaryStatusMap[selectedFn] === false) && (
             <EntradasSection
               funcion={selectedFn}

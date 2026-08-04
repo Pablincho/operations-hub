@@ -7,7 +7,7 @@ router.use(verifyJWT);
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024; // 8MB base64 limit
 
-// POST report a bug — all authenticated users
+// POST report a bug: all authenticated users
 router.post('/', async (req, res) => {
   try {
     const { texto, pagina, imagen, tipo } = req.body;
@@ -32,7 +32,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-// GET all bug reports — admin+
+// GET all bug reports: admin+
 router.get('/', requireAdmin, async (req, res) => {
   try {
     const bugs = await BugReport.findAll({
@@ -47,7 +47,7 @@ router.get('/', requireAdmin, async (req, res) => {
   }
 });
 
-// PATCH toggle resolved — admin+
+// PATCH toggle resolved: admin+
 router.patch('/:id/resolver', requireAdmin, async (req, res) => {
   try {
     const bug = await BugReport.findOne({
@@ -61,7 +61,7 @@ router.patch('/:id/resolver', requireAdmin, async (req, res) => {
   }
 });
 
-// DELETE bug report — admin+
+// DELETE bug report: admin+
 router.delete('/:id', requireAdmin, async (req, res) => {
   try {
     const bug = await BugReport.findOne({

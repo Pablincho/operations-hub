@@ -1,4 +1,4 @@
-# REMI — Registro de Experiencia y Memoria Institucional
+# REMI: Registro de Experiencia y Memoria Institucional
 
 Sistema de captura y documentación de conocimiento de puesto para Don Emilio (agropecuaria).
 Proyecto piloto: documentar los puestos operativos a través de check-ins adaptativos y generar manuales automáticamente con IA.
@@ -13,7 +13,7 @@ Proyecto piloto: documentar los puestos operativos a través de check-ins adapta
 - Tailwind CSS v4
 - shadcn/ui (componentes manuales en `frontend/src/components/ui/`)
 - Axios
-- `@react-pdf/renderer` — exportación PDF del manual
+- `@react-pdf/renderer`: exportación PDF del manual
 
 ### Backend
 - Node.js + Express (ESM)
@@ -21,7 +21,7 @@ Proyecto piloto: documentar los puestos operativos a través de check-ins adapta
 - JWT (8h) para autenticación
 - bcryptjs para hash de contraseñas
 - OpenAI SDK (GPT-4o)
-- Resend SDK — emails transaccionales
+- Resend SDK: emails transaccionales
 
 ### Deploy
 - Railway (frontend y backend separados)
@@ -44,11 +44,11 @@ Proyecto piloto: documentar los puestos operativos a través de check-ins adapta
 - `funciones` (array de strings)
 - `organizacionId`, `activo`
 - `mustChangePassword`, `resetTokenHash`, `resetTokenExpiresAt`
-- `supervisorId` (FK nullable a Usuario — N+1 para flujo de aprobación)
+- `supervisorId` (FK nullable a Usuario, N+1 para flujo de aprobación)
 
 ### KnowledgeEntry
 - `id`, `organizacionId`, `funcion`, `categoria`, `titulo`, `contenido`
-- `bloque` (nullable: B2/B3/B4/B5/B6 — bloque del manual al que pertenece)
+- `bloque` (nullable: B2/B3/B4/B5/B6, bloque del manual al que pertenece)
 - `esSensible`, `usuarioId`
 
 ### CheckinSession
@@ -74,7 +74,7 @@ Proyecto piloto: documentar los puestos operativos a través de check-ins adapta
 
 ## 4. Módulos Implementados (REMI)
 
-### Módulo 1 — Captura de Conocimiento ✅
+### Módulo 1: Captura de Conocimiento ✅
 - 10 preguntas iniciales de onboarding por función, etiquetadas por bloque (B2-B6)
 - 3 preguntas diarias adaptativas generadas por IA, enfocadas en el bloque con menos cobertura
 - Límite de 20 días de check-in diario por función
@@ -86,19 +86,19 @@ Proyecto piloto: documentar los puestos operativos a través de check-ins adapta
   - B5: Relaciones e interfaces
   - B6: Herramientas y sistemas
 
-### Módulo 2 — Generación del Manual ✅
+### Módulo 2: Generación del Manual ✅
 - Generación automática con GPT-4o por bloque
 - Vista previa integrada en el check-in (bloques colapsables)
 - Exportación PDF con logo de Don Emilio, metadata, texto justificado, número de página
 - Pie de página: "Registro de Experiencia y Memoria Institucional (REMI) · Don Emilio"
 
-### Módulo 3 — Control de Versiones ✅
+### Módulo 3: Control de Versiones ✅
 - Versionado automático: 'Borrador' → '1.0' en primer envío → '1.1' en ediciones post-aprobación
 - Estados: borrador / en_revision / vigente / obsoleto
 - Al regenerar: versión anterior archivada como 'obsoleto', nunca eliminada
 - Historial de versiones visible al ocupante
 
-### Módulo 4 — Aprobación ✅
+### Módulo 4: Aprobación ✅
 - Asignación de N+1 (supervisor) por usuario desde el panel Admin
 - Ocupante envía el manual con nota opcional → estado cambia a 'en_revision', versión asignada '1.0'
 - Página "Revisiones" para admins/superadmins: lista de manuales pendientes con bloques expandibles
@@ -151,7 +151,7 @@ Proyecto piloto: documentar los puestos operativos a través de check-ins adapta
 - `DELETE /api/usuarios/:id`
 
 ### Check-in
-- `GET /api/checkin/hoy` — sesiones de hoy + onboardingStatus + dailyCounts + entryCounts
+- `GET /api/checkin/hoy`: sesiones de hoy + onboardingStatus + dailyCounts + entryCounts
 - `POST /api/checkin/iniciar`
 - `POST /api/checkin/:id/responder`
 - `GET /api/checkin/progreso` (admin+)
@@ -206,11 +206,11 @@ Para correr: `cd backend && npm run migrate`
 - `DATABASE_URL`
 - `JWT_SECRET`
 - `OPENAI_API_KEY`
-- `RESEND_API_KEY` — SDK de Resend para emails
+- `RESEND_API_KEY`: SDK de Resend para emails
 - `PORT` (default 3001)
 - `NODE_ENV`
 - `FRONTEND_URL`, `FRONTEND_URL_ALT`
-- `DEFAULT_USER_PASSWORD` — contraseña temporal para nuevos usuarios
+- `DEFAULT_USER_PASSWORD`: contraseña temporal para nuevos usuarios
 
 ### Frontend
 - `VITE_API_URL`
@@ -224,9 +224,9 @@ Si un usuario seed existe y tiene `mustChangePassword = true`, sincroniza el has
 Si tiene `mustChangePassword = false`, lo fuerza a cambiar en el próximo login.
 
 Usuarios seed:
-- `danilomarchisone@gmail.com` — superadmin
-- `arielzsilavecz@gmail.com` — admin
-- `pablodo@gmail.com` — admin
+- `danilomarchisone@gmail.com`: superadmin
+- `arielzsilavecz@gmail.com`: admin
+- `pablodo@gmail.com`: admin
 
 ---
 
@@ -245,20 +245,20 @@ Emails implementados:
 
 ## 11. Páginas del Frontend
 
-- `/login` — autenticación, primer ingreso, recuperación de contraseña
-- `/dashboard` — bienvenida, accesos rápidos, progreso por función
-- `/checkin` — check-in por función, vista del manual, envío a aprobación
-- `/asistente` — chat IA con base de conocimiento
-- `/mi-area` — base de conocimiento manual (CRUD)
-- `/admin` — gestión de usuarios, asignación de funciones y supervisores (admin+)
-- `/revisiones` — manuales pendientes de aprobación (admin+)
+- `/login`: autenticación, primer ingreso, recuperación de contraseña
+- `/dashboard`: bienvenida, accesos rápidos, progreso por función
+- `/checkin`: check-in por función, vista del manual, envío a aprobación
+- `/asistente`: chat IA con base de conocimiento
+- `/mi-area`: base de conocimiento manual (CRUD)
+- `/admin`: gestión de usuarios, asignación de funciones y supervisores (admin+)
+- `/revisiones`: manuales pendientes de aprobación (admin+)
 
 ---
 
 ## 12. Puestos Don Emilio (Piloto)
 
 - N+1: Danilo Marchisone (Gerente General / superadmin)
-- N+2: Melina Vironi (RRHH — también tiene manual y funciones asignadas)
+- N+2: Melina Vironi (RRHH, también tiene manual y funciones asignadas)
 - N: Agustín Paolini (Tesorería)
 - N: Jorgelina Scantamburlo (Administración y Finanzas)
 - N: Antonella Pacetti (Operaciones Agropecuarias)
@@ -272,7 +272,7 @@ Funciones disponibles en el sistema: Tesorería, Administración y Finanzas, Ope
 
 ## 13. Notas Técnicas
 
-- `db.sync()` sin `alter` — nunca altera tablas existentes. Usar migraciones para cambios de esquema.
+- `db.sync()` sin `alter`: nunca altera tablas existentes. Usar migraciones para cambios de esquema.
 - El modelo `Organizacion` tiene `tableName: 'Organizaciones'` explícito para evitar conflicto con auto-plural de Sequelize.
 - `backend/src/config/database.cjs` usa `require('path').resolve(__dirname, '../../../.env')` para encontrar el .env desde el CLI de Sequelize.
 - Entradas sensibles en knowledge: el backend devuelve `_bloqueado: true` (no `redactado`) cuando el contenido está restringido.

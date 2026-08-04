@@ -8,7 +8,8 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { FUNCIONES, FUNC_ICONS, FUNC_COLORS } from '@/lib/utils'
-import { Plus, UserCheck, UserX, Key, Trash2, CheckCircle2, Bug, ChevronDown, ChevronUp, CheckCheck, Trash, ZoomIn, ZoomOut, X, Palmtree } from 'lucide-react'
+import { useTour } from '@/lib/tour'
+import { Plus, UserCheck, UserX, Key, Trash2, CheckCircle2, Bug, ChevronDown, ChevronUp, CheckCheck, Trash, ZoomIn, ZoomOut, X, Palmtree, HelpCircle } from 'lucide-react'
 
 export default function Admin() {
   const { user } = useAuth()
@@ -159,6 +160,72 @@ export default function Admin() {
 
   const totalProgress = FUNCIONES.reduce((acc, fn) => acc + (progress[fn] || 0), 0)
   const totalGoal = FUNCIONES.length * 60
+  // Los botones de acción (vacaciones/activar/password/eliminar) no se muestran para
+  // tu propia fila, así que el tour los ancla a la primera fila que sea OTRO usuario.
+  const primerOtroUsuarioId = users.find(u => u.id !== user?.id)?.id
+
+  const { replay: verTour } = useTour({
+    tourId: 'admin',
+    userId: user?.id,
+    listo: !loading && !!user,
+    steps: [
+      {
+        popover: {
+          title: 'Administración',
+          description: 'Desde acá gestionás usuarios, funciones asignadas, supervisores y el progreso de la base de conocimiento.'
+        }
+      },
+      {
+        element: '[data-tour="admin-progreso"]',
+        popover: {
+          title: 'Progreso por función',
+          description: 'Cuánto lleva documentado cada puesto (meta: 60 entradas). El selector "Principal" define quién es el ocupante principal cuando hay más de una persona con esa función asignada: solo esa persona puede generar y enviar el manual a aprobación, el resto lo ve en modo lectura. Dejalo en "Auto-detectar" si solo hay un ocupante.',
+          side: 'bottom'
+        }
+      },
+      {
+        element: '[data-tour="admin-nuevo"]',
+        popover: {
+          title: 'Crear usuario',
+          description: 'Da de alta un usuario con una contraseña temporal (la ves antes de crearlo). Va a tener que cambiarla obligatoriamente en su primer ingreso.',
+          side: 'bottom',
+          align: 'end'
+        }
+      },
+      {
+        element: '[data-tour="admin-supervisor"]',
+        popover: {
+          title: 'Supervisor',
+          description: 'Elegí quién revisa y aprueba el manual de este usuario. Si no debería tener revisor (por ejemplo, el Gerente General, que está en la punta de la jerarquía), elegí "Autoaprobación": va a poder publicar su propio manual sin pasar por revisión.',
+          side: 'bottom'
+        }
+      },
+      {
+        element: '[data-tour="admin-funciones"]',
+        popover: {
+          title: 'Funciones asignadas',
+          description: 'Click para asignar o quitar una función. Cada función habilita su propio check-in, manual y asistente para ese usuario.',
+          side: 'bottom'
+        }
+      },
+      {
+        element: '[data-tour="admin-acciones"]',
+        popover: {
+          title: 'Acciones rápidas',
+          description: 'La palmera marca a alguien de vacaciones: mientras dure, no le llegan notificaciones de check-in y los días no corren. Al lado podés desactivarlo (bloquea su acceso sin borrar su información), asignarle una contraseña temporal nueva, o eliminarlo (esto último no se puede deshacer).',
+          side: 'top'
+        }
+      },
+      {
+        element: '[data-tour="admin-bugs"]',
+        popover: {
+          title: 'Reportes de problemas',
+          description: 'Los problemas y sugerencias que cualquier usuario reporta desde el ícono de bug (arriba a la derecha, en cualquier pantalla) aparecen acá, con su página de origen y una captura si adjuntaron una. Podés marcarlos como resueltos o eliminarlos.',
+          side: 'top'
+        }
+      }
+    ]
+  })
 
   return (
     <div className="max-w-5xl mx-auto p-6">
@@ -167,14 +234,24 @@ export default function Admin() {
           <h1 className="text-xl font-bold" style={{ color: '#1a3a1a' }}>Administración</h1>
           <p className="text-sm text-muted-foreground">Usuarios y progreso de base de conocimiento</p>
         </div>
-        <Button onClick={() => setShowNew(true)} className="gap-2 text-xs" style={{ background: '#1a3a1a', color: '#e8d5a3' }}>
-          <Plus size={14} />
-          Nuevo usuario
-        </Button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={verTour}
+            title="Ver cómo funciona"
+            className="flex items-center gap-1.5 shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          >
+            <HelpCircle size={14} />
+            ¿Cómo funciona?
+          </button>
+          <Button data-tour="admin-nuevo" onClick={() => setShowNew(true)} className="gap-2 text-xs" style={{ background: '#1a3a1a', color: '#e8d5a3' }}>
+            <Plus size={14} />
+            Nuevo usuario
+          </Button>
+        </div>
       </div>
 
       {/* Progress overview */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6" data-tour="admin-progreso">
         {FUNCIONES.map(fn => {
           const count = progress[fn] || 0
           const pct = Math.min(100, Math.round((count / 60) * 100))
@@ -240,7 +317,7 @@ export default function Admin() {
                     <p className="text-xs text-muted-foreground">{u.email}</p>
 
                     {/* Supervisor */}
-                    <div className="mt-2 flex items-center gap-2">
+                    <div className="mt-2 flex items-center gap-2" data-tour={u.id === primerOtroUsuarioId ? 'admin-supervisor' : undefined}>
                       <span className="text-xs text-muted-foreground shrink-0">Supervisor:</span>
                       <select
                         value={u.autoaprobarManual ? '__auto__' : (u.supervisorId || '')}
@@ -259,7 +336,7 @@ export default function Admin() {
                     </div>
 
                     {/* Function toggles */}
-                    <div className="flex flex-wrap gap-1.5 mt-2">
+                    <div className="flex flex-wrap gap-1.5 mt-2" data-tour={u.id === primerOtroUsuarioId ? 'admin-funciones' : undefined}>
                       {FUNCIONES.map(fn => {
                         const has = (u.funciones || []).includes(fn)
                         const canEdit = true
@@ -287,7 +364,7 @@ export default function Admin() {
                   </div>
 
                   {/* Actions */}
-                  <div className="flex items-center gap-1 shrink-0">
+                  <div className="flex items-center gap-1 shrink-0" data-tour={u.id === primerOtroUsuarioId ? 'admin-acciones' : undefined}>
                     {u.id !== user?.id && (
                       <>
                         <button
@@ -331,7 +408,7 @@ export default function Admin() {
       )}
 
       {/* Bug reports */}
-      <div className="mt-6 border rounded-xl overflow-hidden">
+      <div className="mt-6 border rounded-xl overflow-hidden" data-tour="admin-bugs">
         <button
           onClick={() => setShowBugs(v => !v)}
           className="w-full flex items-center justify-between px-4 py-3 bg-muted hover:bg-muted/80 transition-colors"

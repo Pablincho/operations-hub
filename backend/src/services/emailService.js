@@ -11,7 +11,7 @@ function baseHtml(content) {
       <img src="${LOGO}" alt="Don Emilio" style="height:48px;width:auto;margin-bottom:24px;display:block" />
       ${content}
       <hr style="border:none;border-top:1px solid #eee;margin-top:32px" />
-      <p style="color:#999;font-size:11px;margin-top:12px">REMI — Registro de Experiencia y Memoria Institucional · Don Emilio</p>
+      <p style="color:#999;font-size:11px;margin-top:12px">Registro de Experiencia y Memoria Institucional (REMI) · Don Emilio</p>
     </div>
   `;
 }
@@ -21,7 +21,7 @@ export async function sendBienvenidaEmail(toEmail, nombre, tempPassword) {
   await resend.emails.send({
     from: FROM,
     to: toEmail,
-    subject: 'Bienvenido a REMI — Don Emilio',
+    subject: 'Bienvenido a REMI · Don Emilio',
     html: baseHtml(`
       <p style="color:#222;font-size:15px;font-weight:600;margin-bottom:8px">¡Bienvenido a REMI, ${nombre}!</p>
       <p style="color:#555">Se creó tu acceso al sistema de Registro de Experiencia y Memoria Institucional de Don Emilio.</p>

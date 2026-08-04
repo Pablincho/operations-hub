@@ -7,7 +7,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Textarea } from '@/components/ui/textarea'
 import { FUNC_ICONS, FUNC_COLORS } from '@/lib/utils'
 import { useNotifications } from '@/contexts/NotificationsContext'
-import { CheckCircle2, ChevronDown, ChevronUp, Loader2, RotateCcw, ClipboardCheck, GitCompare, FileText, X } from 'lucide-react'
+import { useAuth } from '@/contexts/AuthContext'
+import { useTour } from '@/lib/tour'
+import { CheckCircle2, ChevronDown, ChevronUp, Loader2, RotateCcw, ClipboardCheck, GitCompare, FileText, X, HelpCircle } from 'lucide-react'
 
 const BLOQUE_NOMBRES = {
   B2: 'Funciones y responsabilidades',
@@ -139,7 +141,7 @@ function BloqueReview({ bloqueKey, nombre, contenido, contenidoAnterior, bloqueE
   )
 }
 
-function ManualCard({ manual: initialManual, onResolved }) {
+function ManualCard({ manual: initialManual, onResolved, isFirst }) {
   const [manual, setManual] = useState(initialManual)
   const [showDiff, setShowDiff] = useState(true)
   const [showDevolverTodo, setShowDevolverTodo] = useState(false)
@@ -226,7 +228,7 @@ function ManualCard({ manual: initialManual, onResolved }) {
               {devueltos > 0 && <span className="text-orange-600"> · {devueltos} devueltos</span>}
             </span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2" data-tour={isFirst ? 'revisiones-acciones' : undefined}>
             {hasPrevious && (
               <div className="flex text-xs rounded-lg border overflow-hidden" style={{ borderColor: '#d1d5db' }}>
                 <button onClick={() => setShowDiff(true)}
@@ -261,14 +263,14 @@ function ManualCard({ manual: initialManual, onResolved }) {
           </div>
         )}
 
-        {/* Bloques con revisión individual — solo los modificados */}
+        {/* Bloques con revisión individual: solo los modificados */}
         {autoAprobados > 0 && (
           <p className="text-xs text-muted-foreground flex items-center gap-1 mb-1">
             <CheckCircle2 size={11} className="text-green-500" />
             {autoAprobados} bloque{autoAprobados > 1 ? 's' : ''} sin cambios, aprobado{autoAprobados > 1 ? 's' : ''} automáticamente
           </p>
         )}
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-1.5" data-tour={isFirst && bloquesRevisar.length > 0 ? 'revisiones-bloque' : undefined}>
           {bloquesRevisar.map(([key, nombre]) => (
             <BloqueReview
               key={key}
@@ -313,6 +315,7 @@ export default function Revisiones() {
   const [manuales, setManuales] = useState([])
   const [loading, setLoading] = useState(true)
   const { refresh: refreshNotifications } = useNotifications()
+  const { user } = useAuth()
 
   useEffect(() => { load() }, [])
 
@@ -330,14 +333,55 @@ export default function Revisiones() {
     refreshNotifications()
   }
 
+  const { replay: verTour } = useTour({
+    tourId: 'revisiones',
+    userId: user?.id,
+    listo: !loading && !!user,
+    steps: [
+      {
+        popover: {
+          title: 'Revisiones',
+          description: 'Acá llegan los manuales que tus supervisados envían a aprobación. Cuando uno se envía, queda "En revisión" y esa persona no puede editarlo hasta que vos respondas. Si ahora mismo no hay ninguno pendiente, es porque están todos al día. Esta pantalla se actualiza sola apenas alguien te envíe uno.'
+        }
+      },
+      {
+        element: '[data-tour="revisiones-acciones"]',
+        popover: {
+          title: 'Aprobar o devolver todo',
+          description: '"Aprobar todo" deja el manual como "Vigente" de inmediato. "Devolver" abre un cuadro para escribir una observación general: el manual vuelve a "Borrador", el ocupante la ve en su pantalla, corrige y te lo vuelve a enviar. El botón "Cambios" te muestra qué se modificó respecto a la versión anterior aprobada, resaltado en rojo/verde.',
+          side: 'bottom',
+          align: 'end'
+        }
+      },
+      {
+        element: '[data-tour="revisiones-bloque"]',
+        popover: {
+          title: 'Revisión por bloque',
+          description: 'Si solo una parte necesita ajustes, no hace falta devolver todo el manual: expandí el bloque y aprobalo o devolvelo con su propia observación puntual. Los bloques que no cambiaron respecto a la versión anterior ya vienen aprobados automáticamente y no aparecen acá. Cuando quedan todos los bloques resueltos (aprobados o devueltos), el manual se resuelve solo y desaparece de esta lista.',
+          side: 'top'
+        }
+      }
+    ]
+  })
+
   return (
     <div className="max-w-4xl mx-auto p-6">
-      <div className="mb-6">
-        <h1 className="text-xl font-bold flex items-center gap-2" style={{ color: '#1a3a1a' }}>
-          <ClipboardCheck size={20} />
-          Revisiones
-        </h1>
-        <p className="text-sm text-muted-foreground">Manuales pendientes de tu aprobación</p>
+      <div className="mb-6 flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold flex items-center gap-2" style={{ color: '#1a3a1a' }}>
+            <ClipboardCheck size={20} />
+            Revisiones
+          </h1>
+          <p className="text-sm text-muted-foreground">Manuales pendientes de tu aprobación</p>
+        </div>
+        <button
+          onClick={verTour}
+          title="Ver cómo funciona"
+          className="flex items-center gap-1.5 shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+        >
+          <HelpCircle size={14} />
+          ¿Cómo funciona?
+        </button>
       </div>
 
       {loading ? (
@@ -353,8 +397,8 @@ export default function Revisiones() {
       ) : (
         <div className="flex flex-col gap-4">
           <p className="text-xs text-muted-foreground">{manuales.length} manual{manuales.length > 1 ? 'es' : ''} pendiente{manuales.length > 1 ? 's' : ''}</p>
-          {manuales.map(m => (
-            <ManualCard key={m.id} manual={m} onResolved={removeManual} />
+          {manuales.map((m, i) => (
+            <ManualCard key={m.id} manual={m} onResolved={removeManual} isFirst={i === 0} />
           ))}
         </div>
       )}

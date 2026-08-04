@@ -74,7 +74,7 @@ router.get('/hoy', async (req, res) => {
 });
 
 // POST start a check-in for a specific function
-// Phase 1 (onboarding): 10 fixed initial questions — asked once per function
+// Phase 1 (onboarding): 10 fixed initial questions, asked once per function
 // Phase 2 (daily): 3 AI-adapted questions per day, up to 20 days
 router.post('/iniciar', async (req, res) => {
   try {

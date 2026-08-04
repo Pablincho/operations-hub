@@ -4,7 +4,8 @@ import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { FUNC_ICONS, FUNC_COLORS } from '@/lib/utils'
-import { Send, PlusCircle, Bot, Pencil, Check, X, History, ThumbsUp, ThumbsDown, Download, AlertCircle } from 'lucide-react'
+import { useTour } from '@/lib/tour'
+import { Send, PlusCircle, Bot, Pencil, Check, X, History, ThumbsUp, ThumbsDown, Download, AlertCircle, HelpCircle } from 'lucide-react'
 
 const NO_INFO_PHRASE = 'no está registrada todavía en el sistema'
 
@@ -165,10 +166,10 @@ function MessageBubble({ msg, onFeedback }) {
         </div>
         {isEfimero && (
           <span className="text-xs text-muted-foreground flex items-center gap-1 pl-1">
-            ⚡ Respuesta efímera — no queda guardada
+            ⚡ Respuesta efímera: no queda guardada
           </span>
         )}
-        {/* Feedback buttons — solo en mensajes persistidos */}
+        {/* Feedback buttons: solo en mensajes persistidos */}
         {!isEfimero && (
           <div className={`flex gap-1 pl-1 transition-opacity ${hovering || localFeedback ? 'opacity-100' : 'opacity-0'}`}>
             <button onClick={() => handleFeedback('up')}
@@ -280,6 +281,55 @@ export default function Asistente() {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(e) }
   }
 
+  const { replay: verTour } = useTour({
+    tourId: 'asistente',
+    userId: user?.id,
+    listo: !initializing && !!user,
+    steps: [
+      {
+        popover: {
+          title: 'Asistente IA',
+          description: 'Consultá procedimientos y responsabilidades de tu función con tus propias palabras. Responde en base a lo que ya está documentado en los manuales de tus funciones. Si algo todavía no fue documentado, te lo va a decir en vez de inventar una respuesta.'
+        }
+      },
+      {
+        element: '[data-tour="asistente-input"]',
+        popover: {
+          title: 'Escribí tu consulta',
+          description: 'Enter para enviar, Shift+Enter para agregar un salto de línea sin enviar. Podés marcar cada respuesta con 👍 o 👎 pasando el mouse sobre ella, para avisarnos si te sirvió.',
+          side: 'top'
+        }
+      },
+      {
+        element: '[data-tour="asistente-historial"]',
+        popover: {
+          title: 'Conversaciones anteriores',
+          description: 'Todas tus conversaciones quedan guardadas automáticamente. Volvé a cualquiera desde acá, y hacé click en el título (arriba a la izquierda) para renombrarla.',
+          side: 'bottom',
+          align: 'end'
+        }
+      },
+      {
+        element: '[data-tour="asistente-nueva"]',
+        popover: {
+          title: 'Nueva conversación',
+          description: 'Arrancá un chat nuevo cuando quieras cambiar de tema. La conversación actual no se pierde, queda guardada en el historial.',
+          side: 'bottom',
+          align: 'end'
+        }
+      },
+      {
+        element: '[data-tour="asistente-exportar"]',
+        popover: {
+          title: 'Descargar conversación',
+          description: 'Exportá esta conversación como archivo de texto.',
+          side: 'bottom',
+          align: 'end'
+        }
+      }
+    ]
+  })
+
   return (
     <div className="flex flex-col h-full w-full">
       {/* Topbar */}
@@ -291,14 +341,14 @@ export default function Asistente() {
         <div className="flex items-center gap-2 shrink-0">
           <FuncionesPills funciones={funciones} />
           {messages.length > 0 && (
-            <Button variant="ghost" size="sm" title="Descargar conversación"
+            <Button data-tour="asistente-exportar" variant="ghost" size="sm" title="Descargar conversación"
               onClick={() => exportConversation(messages, sessionName)}
               className="gap-1.5 text-xs" style={{ color: '#1a3a1a' }}>
               <Download size={14} />
             </Button>
           )}
           <div className="relative">
-            <Button variant="ghost" size="sm" title="Conversaciones anteriores" onClick={() => setShowHistorial(v => !v)} className="gap-1.5 text-xs" style={{ color: '#1a3a1a' }}>
+            <Button data-tour="asistente-historial" variant="ghost" size="sm" title="Conversaciones anteriores" onClick={() => setShowHistorial(v => !v)} className="gap-1.5 text-xs" style={{ color: '#1a3a1a' }}>
               <History size={14} />
             </Button>
             {showHistorial && (
@@ -309,9 +359,12 @@ export default function Asistente() {
               />
             )}
           </div>
-          <Button variant="ghost" size="sm" title="Nueva conversación" onClick={newChat} className="gap-1.5 text-xs" style={{ color: '#1a3a1a' }}>
+          <Button data-tour="asistente-nueva" variant="ghost" size="sm" title="Nueva conversación" onClick={newChat} className="gap-1.5 text-xs" style={{ color: '#1a3a1a' }}>
             <PlusCircle size={14} />
             Nueva
+          </Button>
+          <Button variant="ghost" size="sm" title="Ver cómo funciona" onClick={verTour} className="gap-1.5 text-xs text-muted-foreground">
+            <HelpCircle size={14} />
           </Button>
         </div>
       </div>
@@ -354,6 +407,7 @@ export default function Asistente() {
       {/* Input */}
       <form onSubmit={sendMessage} className="flex items-stretch gap-2 p-4 border-t bg-white">
         <Textarea
+          data-tour="asistente-input"
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={handleKeyDown}

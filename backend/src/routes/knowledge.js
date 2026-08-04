@@ -39,7 +39,7 @@ router.get('/', async (req, res) => {
     const filtered = entries.map(e => {
       const entry = e.toJSON();
       if (entry.esSensible && !canSeeSensitive(req.user, entry.funcion)) {
-        entry.contenido = '[Contenido sensible — no tenés acceso a esta función]';
+        entry.contenido = '[Contenido sensible: no tenés acceso a esta función]';
         entry._bloqueado = true;
       }
       return entry;
@@ -128,7 +128,7 @@ router.put('/:id', async (req, res) => {
     const refreshed = await KnowledgeEntry.findByPk(entry.id);
     const responseData = refreshed.toJSON();
     if (responseData.esSensible && !canSeeSensitive(req.user, responseData.funcion)) {
-      responseData.contenido = '[Contenido sensible — no tenés acceso a esta función]';
+      responseData.contenido = '[Contenido sensible: no tenés acceso a esta función]';
       responseData._bloqueado = true;
     }
 

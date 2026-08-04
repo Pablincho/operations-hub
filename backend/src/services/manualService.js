@@ -31,7 +31,7 @@ async function generarBloqueNuevo(funcion, nombreBloque, allQas) {
       content: `Sos redactor de manuales de puesto para una empresa agropecuaria argentina.
 A partir de las siguientes respuestas del ocupante del puesto de "${funcion}", redactá el bloque "${nombreBloque}" del manual de forma clara y profesional.
 El texto debe ser IMPERSONAL y descriptivo del puesto, en tercera persona. Nunca uses primera persona (nada de "mi", "yo", "me", "mis"). Ejemplo correcto: "El tesorero gestiona...", "El puesto requiere...", "Se espera que...".
-Sin títulos ni listas — solo prosa fluida.
+Sin títulos ni listas, solo prosa fluida.
 Cada respuesta corresponde a un aspecto distinto del puesto. Tratá cada una de forma independiente; no mezcles información entre respuestas.
 ${REGLA_SENSIBLE}
 Separación numérica en español: punto para miles, coma para decimales (ej: 1.000 pesos, 10,5%).

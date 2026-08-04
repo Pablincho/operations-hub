@@ -77,3 +77,64 @@ textarea:disabled,
 select:disabled {
   cursor: not-allowed;
 }
+
+/* ─── Tour de onboarding (driver.js) ──────────────────────────────────────── */
+/* Los selectores incluyen .remi-tour para ganarle en especificidad a driver.css,
+   sin depender del orden en que se bundleen las hojas de estilo. */
+.driver-popover.remi-tour {
+  max-width: 320px;
+  padding: 18px 18px 14px;
+  border-radius: var(--radius);
+  box-shadow: 0 10px 40px rgba(26, 58, 26, 0.25);
+}
+
+.driver-popover.remi-tour .driver-popover-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1a3a1a;
+}
+
+.driver-popover.remi-tour .driver-popover-description {
+  margin-top: 4px;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: #555;
+}
+
+.driver-popover.remi-tour .driver-popover-progress-text {
+  font-size: 0.7rem;
+  color: #999;
+}
+
+.driver-popover.remi-tour .driver-popover-footer button {
+  padding: 6px 14px;
+  border: none;
+  border-radius: 8px;
+  background: #1a3a1a;
+  color: #e8d5a3;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-shadow: none;
+}
+
+.driver-popover.remi-tour .driver-popover-footer button:hover {
+  background: #245124;
+}
+
+.driver-popover.remi-tour .driver-popover-prev-btn {
+  background: transparent;
+  color: #666;
+}
+
+.driver-popover.remi-tour .driver-popover-prev-btn:hover {
+  background: #f0f0f0;
+  color: #1a3a1a;
+}
+
+.driver-popover.remi-tour .driver-popover-close-btn {
+  color: #aaa;
+}
+
+.driver-popover.remi-tour .driver-popover-close-btn:hover {
+  color: #1a3a1a;
+}

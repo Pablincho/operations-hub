@@ -64,7 +64,7 @@ router.get('/pendientes', requireAdmin, async (req, res) => {
   }
 });
 
-// GET current manual (latest non-obsoleto) — manual is per function (org-wide)
+// GET current manual (latest non-obsoleto): manual is per function (org-wide)
 router.get('/:funcion', async (req, res) => {
   try {
     const { funcion } = req.params;
@@ -107,7 +107,7 @@ router.get('/:funcion', async (req, res) => {
   }
 });
 
-// GET version history — per function (org-wide)
+// GET version history: per function (org-wide)
 router.get('/:funcion/historial', async (req, res) => {
   try {
     const { funcion } = req.params;
@@ -122,7 +122,7 @@ router.get('/:funcion/historial', async (req, res) => {
   }
 });
 
-// POST generate/regenerate — archives previous and creates new version
+// POST generate/regenerate: archives previous and creates new version
 router.post('/:funcion/generar', async (req, res) => {
   try {
     const { funcion } = req.params;
@@ -150,7 +150,7 @@ router.post('/:funcion/generar', async (req, res) => {
       return res.status(403).json({ success: false, error: 'Solo el ocupante principal puede generar el manual de este puesto.' });
     }
 
-    // Find current active (non-obsoleto) manual — per function (org-wide)
+    // Find current active (non-obsoleto) manual: per function (org-wide)
     const current = await Manual.findOne({
       where: { organizacionId: req.user.organizacionId, funcion, estado: { [Op.ne]: 'obsoleto' } },
       order: [['createdAt', 'DESC']]
