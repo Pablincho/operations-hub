@@ -238,10 +238,9 @@ export default function Admin() {
           <button
             onClick={verTour}
             title="Ver cómo funciona"
-            className="flex items-center gap-1.5 shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            className="flex items-center justify-center shrink-0 p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           >
             <HelpCircle size={14} />
-            ¿Cómo funciona?
           </button>
           <Button data-tour="admin-nuevo" onClick={() => setShowNew(true)} className="gap-2 text-xs" style={{ background: '#1a3a1a', color: '#e8d5a3' }}>
             <Plus size={14} />

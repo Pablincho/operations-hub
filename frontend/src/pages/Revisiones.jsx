@@ -377,10 +377,9 @@ export default function Revisiones() {
         <button
           onClick={verTour}
           title="Ver cómo funciona"
-          className="flex items-center gap-1.5 shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          className="flex items-center justify-center shrink-0 p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
         >
           <HelpCircle size={14} />
-          ¿Cómo funciona?
         </button>
       </div>
 
