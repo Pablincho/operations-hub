@@ -3,6 +3,8 @@
 Sistema de captura y documentación de conocimiento de puesto para Don Emilio (agropecuaria).
 Proyecto piloto: documentar los puestos operativos a través de check-ins adaptativos y generar manuales automáticamente con IA.
 
+> Estado de seguridad actualizado (septiembre de 2026): los operativos solo acceden a funciones asignadas; la autenticación refresca rol, funciones y estado activo desde PostgreSQL en cada petición; los datos sensibles permanecen cifrados dentro del sistema y se excluyen de todos los prompts de IA; eliminar un usuario lo desactiva y conserva su historial.
+
 ---
 
 ## 1. Stack Tecnológico
@@ -18,7 +20,7 @@ Proyecto piloto: documentar los puestos operativos a través de check-ins adapta
 ### Backend
 - Node.js + Express (ESM)
 - Sequelize ORM + PostgreSQL
-- JWT (8h) para autenticación
+- JWT (8h) para autenticación, con permisos y estado activo revalidados en base de datos en cada petición
 - bcryptjs para hash de contraseñas
 - OpenAI SDK (GPT-4o)
 - Resend SDK: emails transaccionales
@@ -127,7 +129,7 @@ Proyecto piloto: documentar los puestos operativos a través de check-ins adapta
 - `superadmin`: acceso total, puede crear admins, ver entradas sensibles
 - `admin`: gestión de usuarios, puede asignar supervisores, revisar manuales
 - `operativo`: solo sus funciones asignadas, no puede ver entradas sensibles de otras funciones
-- Entradas sensibles (`esSensible: true`): solo editables/eliminables por superadmin
+- Entradas sensibles (`esSensible: true`): cifradas en reposo, excluidas de los prompts de IA y solo eliminables por superadmin
 
 ---
 

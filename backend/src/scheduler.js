@@ -1,15 +1,27 @@
 import cron from 'node-cron';
-import { Op } from 'sequelize';
-import { Usuario, CheckinSession } from './models/index.js';
+import { Usuario, CheckinSession, Organizacion } from './models/index.js';
 import { sendRecordatorioEmail, sendRecordatorioSupervisorEmail } from './services/emailService.js';
 
 const DIAS_USUARIO = 5;
 const DIAS_SUPERVISOR = 10;
 const MAX_DIARIOS = 20;
 
+// El cron corre una vez al día; si ese proceso no llegó a correr (redeploy, reinicio de
+// Railway a esa hora), diasSinActividad salta de largo el múltiplo exacto y el recordatorio
+// de esa racha nunca se manda. Para eso guardamos cuándo fue la última corrida exitosa (en
+// Organizacion.config, el mismo JSON que ya se usa para otras configuraciones de la org) y
+// medimos el hueco real: en un día normal da 1 (comportamiento idéntico al de antes), y si
+// se saltó un día, el hueco cubre también el múltiplo que se hubiera perdido.
 async function checkInactivos() {
+  const org = await Organizacion.findOne();
+  const now = Date.now();
+  const prevRunAt = org?.config?.schedulerLastRunAt
+    ? new Date(org.config.schedulerLastRunAt).getTime()
+    : now - 86400000;
+  const huecoDias = Math.max(1, Math.round((now - prevRunAt) / 86400000));
+
   const usuarios = await Usuario.findAll({
-    where: { activo: true, rol: 'operativo' }
+    where: { activo: true, rol: 'operativo', enVacaciones: false }
   });
 
   const activos = usuarios.filter(u => u.funciones?.length > 0);
@@ -36,13 +48,15 @@ async function checkInactivos() {
 
       if (diasSinActividad < DIAS_USUARIO) continue;
 
-      try {
-        await sendRecordatorioEmail(usuario.email, usuario.nombre, funcion, diasSinActividad);
-      } catch (err) {
-        console.error(`[Scheduler] Error enviando recordatorio a ${usuario.email}:`, err.message);
+      if (diasSinActividad % DIAS_USUARIO < huecoDias) {
+        try {
+          await sendRecordatorioEmail(usuario.email, usuario.nombre, funcion, diasSinActividad);
+        } catch (err) {
+          console.error(`[Scheduler] Error enviando recordatorio a ${usuario.email}:`, err.message);
+        }
       }
 
-      if (diasSinActividad >= DIAS_SUPERVISOR && usuario.supervisorId) {
+      if (diasSinActividad >= DIAS_SUPERVISOR && diasSinActividad % DIAS_SUPERVISOR < huecoDias && usuario.supervisorId) {
         try {
           const supervisor = await Usuario.findByPk(usuario.supervisorId, { attributes: ['email', 'nombre'] });
           if (supervisor) {
@@ -53,6 +67,14 @@ async function checkInactivos() {
         }
       }
     }
+  }
+
+  // Solo se llega acá si el barrido completo no tiró ningún error de infraestructura
+  // (los fallos de envío de un email puntual ya se atrapan arriba y no cortan el loop).
+  // Si esto no llega a guardarse, la próxima corrida va a ver un hueco más grande y
+  // recuperar el aviso que se hubiera perdido.
+  if (org) {
+    await org.update({ config: { ...(org.config || {}), schedulerLastRunAt: new Date(now).toISOString() } });
   }
 }
 

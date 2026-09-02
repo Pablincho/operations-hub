@@ -252,14 +252,14 @@ function ManualSection({ funcion, color, onManualEstado, isPrimary, autoRegenTri
   const [contenidoAnterior, setContenidoAnterior] = useState(null)
   const [showDiff, setShowDiff] = useState(true)
 
-  useEffect(() => { loadManual() }, [funcion])
+  useEffect(() => { loadManual() }, [funcion]) // eslint-disable-line react-hooks/exhaustive-deps -- recarga por función
   useEffect(() => {
     onManualEstado?.(manual ? { estado: manual.estado, generadoEn: manual.generadoEn } : null)
-  }, [manual])
+  }, [manual]) // eslint-disable-line react-hooks/exhaustive-deps -- callback informativo del padre
   useEffect(() => {
     if (!autoRegenTrigger) return
     generarOActualizar()
-  }, [autoRegenTrigger])
+  }, [autoRegenTrigger]) // eslint-disable-line react-hooks/exhaustive-deps -- evento explícito del padre
 
   async function loadManual() {
     setLoading(true)
@@ -559,7 +559,7 @@ function EntradasSection({ funcion, color, refreshTrigger, manualEstado, generad
   const [editedIds, setEditedIds] = useState(loadEditedIds)
   const [autoSensibleIds, setAutoSensibleIds] = useState(new Set())
 
-  useEffect(() => { loadEntries() }, [funcion, refreshTrigger])
+  useEffect(() => { loadEntries() }, [funcion, refreshTrigger]) // eslint-disable-line react-hooks/exhaustive-deps -- recarga por claves
 
   useEffect(() => {
     if (!clearEditedTrigger) return
@@ -567,7 +567,7 @@ function EntradasSection({ funcion, color, refreshTrigger, manualEstado, generad
     persistOriginals({})
     setEditedIds(new Set())
     loadEntries()
-  }, [clearEditedTrigger])
+  }, [clearEditedTrigger]) // eslint-disable-line react-hooks/exhaustive-deps -- evento explícito del padre
 
   async function loadEntries() {
     setLoading(true)
@@ -729,13 +729,13 @@ export default function MiManual() {
   const [onboardingStatus, setOnboardingStatus] = useState({})
   const [dailyCounts, setDailyCounts] = useState({})
   const [entryCounts, setEntryCounts] = useState({})
-  const [refreshEntries, setRefreshEntries] = useState(0)
+  const refreshEntries = 0
   const [manualMeta, setManualMeta] = useState({})
   const [clearEditedTrigger, setClearEditedTrigger] = useState(0)
   const [autoRegenTrigger, setAutoRegenTrigger] = useState(0)
   const [primaryStatusMap, setPrimaryStatusMap] = useState({})
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps -- carga inicial
 
   async function load() {
     try {

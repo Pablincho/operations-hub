@@ -3,13 +3,13 @@ import api from '@/services/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { FUNCIONES, FUNC_ICONS, FUNC_COLORS } from '@/lib/utils'
 import { useTour } from '@/lib/tour'
-import { Plus, UserCheck, UserX, Key, Trash2, CheckCircle2, Bug, ChevronDown, ChevronUp, CheckCheck, Trash, ZoomIn, ZoomOut, X, Palmtree, HelpCircle } from 'lucide-react'
+import { Plus, UserCheck, UserX, Key, Trash2, Bug, ChevronDown, ChevronUp, CheckCheck, Trash, ZoomIn, ZoomOut, X, Palmtree, HelpCircle } from 'lucide-react'
 
 export default function Admin() {
   const { user } = useAuth()
@@ -26,7 +26,6 @@ export default function Admin() {
   const [newForm, setNewForm] = useState({ nombre: '', email: '', rol: 'operativo', funciones: [] })
   const [pwForm, setPwForm] = useState({ userId: null, password: '' })
 
-  const isSuperAdmin = user?.rol === 'superadmin'
 
   useEffect(() => { load() }, [])
 
@@ -127,7 +126,7 @@ export default function Admin() {
   }
 
   async function deleteUser(u) {
-    if (!window.confirm(`¿Eliminar a ${u.nombre}? Esta acción no se puede deshacer.`)) return
+    if (!window.confirm(`¿Eliminar a ${u.nombre}? Se desactiva su cuenta (igual que "Desactivar") y se conserva su historial; podés reactivarlo después.`)) return
     try {
       await api.delete(`/usuarios/${u.id}`)
       load()
@@ -212,7 +211,7 @@ export default function Admin() {
         element: '[data-tour="admin-acciones"]',
         popover: {
           title: 'Acciones rápidas',
-          description: 'La palmera marca a alguien de vacaciones: mientras dure, no le llegan notificaciones de check-in y los días no corren. Al lado podés desactivarlo (bloquea su acceso sin borrar su información), asignarle una contraseña temporal nueva, o eliminarlo (esto último no se puede deshacer).',
+          description: 'La palmera marca a alguien de vacaciones: mientras dure, no le llegan notificaciones de check-in y los días no corren. Al lado podés desactivarlo o eliminarlo (ambos hacen lo mismo: bloquean su acceso sin borrar su información, y se puede reactivar después), o asignarle una contraseña temporal nueva.',
           side: 'top'
         }
       },
@@ -326,7 +325,7 @@ export default function Admin() {
                         <option value="">Sin supervisor</option>
                         <option value="__auto__">Autoaprobación (sin revisor)</option>
                         {users
-                          .filter(s => ['admin', 'superadmin'].includes(s.rol) && s.id !== u.id)
+                          .filter(s => s.activo && ['admin', 'superadmin'].includes(s.rol) && s.id !== u.id)
                           .map(s => (
                             <option key={s.id} value={s.id}>{s.nombre} ({s.rol})</option>
                           ))

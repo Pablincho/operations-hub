@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { Op } from 'sequelize';
-import { verifyJWT } from '../auth.js';
+import { verifyJWT, canAccessFuncion } from '../auth.js';
 import { KnowledgeEntry } from '../models/index.js';
 import { detectSensitive } from '../utils/detectSensitive.js';
 
@@ -24,6 +24,9 @@ router.get('/', async (req, res) => {
     const where = { organizacionId: req.user.organizacionId };
 
     if (funcion) {
+      if (!canAccessFuncion(req.user, funcion)) {
+        return res.status(403).json({ success: false, error: 'No tenés acceso a esa función' });
+      }
       where.funcion = funcion;
     } else if (req.user.rol === 'operativo') {
       // operativo sees only their assigned functions
@@ -60,7 +63,7 @@ router.post('/', async (req, res) => {
     }
 
     // Operativo only creates entries for their assigned functions
-    if (req.user.rol === 'operativo' && !req.user.funciones?.includes(funcion)) {
+    if (!canAccessFuncion(req.user, funcion)) {
       return res.status(403).json({ success: false, error: 'No tenés acceso a esa función' });
     }
 
@@ -98,7 +101,7 @@ router.put('/:id', async (req, res) => {
     });
     if (!entry) return res.status(404).json({ success: false, error: 'Entrada no encontrada' });
 
-    if (req.user.rol === 'operativo' && !req.user.funciones?.includes(entry.funcion)) {
+    if (!canAccessFuncion(req.user, entry.funcion)) {
       return res.status(403).json({ success: false, error: 'No tenés acceso a esa función' });
     }
 
@@ -146,7 +149,7 @@ router.delete('/:id', async (req, res) => {
     });
     if (!entry) return res.status(404).json({ success: false, error: 'Entrada no encontrada' });
 
-    if (req.user.rol === 'operativo' && !req.user.funciones?.includes(entry.funcion)) {
+    if (!canAccessFuncion(req.user, entry.funcion)) {
       return res.status(403).json({ success: false, error: 'No tenés acceso a esa función' });
     }
 

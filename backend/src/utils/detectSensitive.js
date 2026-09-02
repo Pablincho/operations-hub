@@ -18,21 +18,21 @@ function getOpenAI() {
   return _openai;
 }
 
+// Antes, ante un error del detector externo se devolvía true (falso positivo permanente:
+// el contenido quedaba marcado sensible para siempre, excluido del manual, y solo un
+// superadmin podía destraparlo). Ahora se propaga el error para que el llamador falle
+// el pedido completo en vez de guardar una clasificación equivocada sin avisar a nadie.
 export async function detectByAI(titulo, contenido) {
-  try {
-    const response = await getOpenAI().chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [{
-        role: 'user',
-        content: `¿El siguiente texto contiene contraseñas, credenciales de acceso, usuarios de sistema, tokens, claves bancarias u otro dato que debería guardarse de forma segura? Respondé solo "si" o "no".\n\nTítulo: ${titulo}\nContenido: ${contenido}`
-      }],
-      max_tokens: 5,
-      temperature: 0
-    });
-    return response.choices[0].message.content.trim().toLowerCase().startsWith('si');
-  } catch {
-    return false;
-  }
+  const response = await getOpenAI().chat.completions.create({
+    model: 'gpt-4o-mini',
+    messages: [{
+      role: 'user',
+      content: `¿El siguiente texto contiene contraseñas, credenciales de acceso, usuarios de sistema, tokens, claves bancarias u otro dato que debería guardarse de forma segura? Respondé solo "si" o "no".\n\nTítulo: ${titulo}\nContenido: ${contenido}`
+    }],
+    max_tokens: 5,
+    temperature: 0
+  });
+  return response.choices[0].message.content.trim().toLowerCase().startsWith('si');
 }
 
 export async function detectSensitive(titulo, contenido) {

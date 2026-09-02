@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { Sequelize, Op } from 'sequelize';
 import { verifyJWT, requireAdmin } from '../auth.js';
-import { CheckinSession, KnowledgeEntry, Organizacion } from '../models/index.js';
+import { db, CheckinSession, KnowledgeEntry, Organizacion } from '../models/index.js';
 import { generarPreguntas, INITIAL_QUESTIONS } from '../services/checkinService.js';
 import { detectSensitive } from '../utils/detectSensitive.js';
 
@@ -171,7 +171,13 @@ router.post('/iniciar', async (req, res) => {
     });
 
     res.status(201).json({ success: true, data: session });
-  } catch {
+  } catch (err) {
+    if (err.name === 'SequelizeUniqueConstraintError') {
+      const existing = await CheckinSession.findOne({
+        where: { usuarioId: req.user.id, funcion: req.body.funcion, fecha: todayBA() }
+      });
+      return res.json({ success: true, data: existing });
+    }
     res.status(500).json({ success: false, error: 'Error interno' });
   }
 });
@@ -198,27 +204,57 @@ router.post('/:id/responder', async (req, res) => {
       respondida: !!(respuestas[i]?.trim())
     }));
 
-    // Persist each answered Q&A as a KnowledgeEntry, auto-detecting sensitive content
-    await Promise.all(
-      updatedPreguntas.filter(p => p.respondida).map(async p => {
-        const esSensible = await detectSensitive(p.pregunta, p.respuesta);
-        return KnowledgeEntry.create({
-          organizacionId: req.user.organizacionId,
-          funcion: session.funcion,
-          categoria: 'checkin',
-          bloque: p.bloque || null,
-          titulo: p.pregunta,
-          contenido: p.respuesta,
-          esSensible,
-          usuarioId: req.user.id
-        });
-      })
-    );
-    await session.update({ preguntas: updatedPreguntas, completado: true });
+    // La detección externa ocurre antes de la transacción; no se escribe nada parcialmente.
+    // Si el detector falla (ej: caída de OpenAI), no adivinamos: se corta acá para que el
+    // usuario reintente, en vez de guardar una respuesta marcada sensible por error y sin
+    // forma simple de destraparla después.
+    const answered = updatedPreguntas.filter(p => p.respondida);
+    let sensitivities;
+    try {
+      sensitivities = await Promise.all(
+        answered.map(p => detectSensitive(p.pregunta, p.respuesta))
+      );
+    } catch (err) {
+      console.error('[checkin] Error verificando contenido sensible:', err.message);
+      return res.status(503).json({
+        success: false,
+        error: 'No se pudo verificar el contenido en este momento. Intentá guardar de nuevo en unos segundos.'
+      });
+    }
 
+    await db.transaction(async transaction => {
+      const lockedSession = await CheckinSession.findOne({
+        where: { id: session.id, usuarioId: req.user.id },
+        transaction,
+        lock: transaction.LOCK.UPDATE
+      });
+      if (!lockedSession || lockedSession.completado) {
+        const error = new Error('Este check-in ya fue completado');
+        error.status = 409;
+        throw error;
+      }
+
+      await KnowledgeEntry.bulkCreate(answered.map((p, index) => ({
+        organizacionId: req.user.organizacionId,
+        funcion: lockedSession.funcion,
+        categoria: 'checkin',
+        bloque: p.bloque || null,
+        titulo: p.pregunta,
+        contenido: p.respuesta,
+        esSensible: sensitivities[index],
+        usuarioId: req.user.id
+      })), { transaction, individualHooks: true });
+
+      await lockedSession.update(
+        { preguntas: updatedPreguntas, completado: true },
+        { transaction }
+      );
+    });
+
+    await session.reload();
     res.json({ success: true, data: session });
-  } catch {
-    res.status(500).json({ success: false, error: 'Error interno' });
+  } catch (err) {
+    res.status(err.status || 500).json({ success: false, error: err.status ? err.message : 'Error interno' });
   }
 });
 

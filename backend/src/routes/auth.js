@@ -163,6 +163,10 @@ router.post('/recover/reset', async (req, res) => {
     const code = (req.body?.code || '').trim();
     const password = req.body?.password || '';
 
+    if (code && !/^\d{6}$/.test(code)) {
+      return res.status(400).json({ success: false, error: 'Código inválido o vencido' });
+    }
+
     if (!email || !code || !password) {
       return res.status(400).json({ success: false, error: 'Email, código y contraseña requeridos' });
     }
@@ -206,7 +210,8 @@ router.post('/recover/reset', async (req, res) => {
 // GET current user (fresh from DB) + reissue JWT so funciones stay current after admin changes
 router.get('/me', verifyJWT, async (req, res) => {
   try {
-    const usuario = await Usuario.findByPk(req.user.id, {
+    const usuario = await Usuario.findOne({
+      where: { id: req.user.id, activo: true },
       attributes: { exclude: ['passwordHash', 'resetTokenHash', 'resetTokenExpiresAt'] }
     });
     if (!usuario) return res.status(404).json({ success: false, error: 'Usuario no encontrado' });

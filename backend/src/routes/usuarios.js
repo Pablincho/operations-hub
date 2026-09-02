@@ -110,9 +110,16 @@ router.post('/', requireAdmin, async (req, res) => {
       return res.status(403).json({ success: false, error: 'Solo el superadmin puede crear roles elevados' });
     }
 
-    const existing = await Usuario.findOne({ where: { email: normalizedEmail } });
+    const existing = await Usuario.findOne({ where: { email: normalizedEmail, activo: true } });
     if (existing) {
-      return res.status(400).json({ success: false, error: 'Ya existe un usuario con ese email' });
+      return res.status(400).json({ success: false, error: 'Ya existe un usuario activo con ese email' });
+    }
+    const existingInactive = await Usuario.findOne({ where: { email: normalizedEmail, activo: false } });
+    if (existingInactive) {
+      return res.status(400).json({
+        success: false,
+        error: 'Ese email pertenece a un usuario desactivado. Reactivalo desde su ficha en vez de crear uno nuevo.'
+      });
     }
 
     const passwordHash = await bcrypt.hash(tempPassword, 12);
@@ -126,7 +133,8 @@ router.post('/', requireAdmin, async (req, res) => {
       organizacionId: req.user.organizacionId
     });
 
-    const { passwordHash: _, ...data } = usuario.toJSON();
+    const data = usuario.toJSON();
+    delete data.passwordHash;
 
     try {
       await sendBienvenidaEmail(normalizedEmail, nombre, tempPassword);
@@ -161,7 +169,8 @@ router.patch('/:id/funciones', requireAdmin, async (req, res) => {
     if (!usuario) return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
 
     await usuario.update({ funciones });
-    const { passwordHash: _, ...data } = usuario.toJSON();
+    const data = usuario.toJSON();
+    delete data.passwordHash;
     res.json({ success: true, data });
   } catch {
     res.status(500).json({ success: false, error: 'Error interno' });
@@ -187,6 +196,15 @@ router.patch('/:id/activo', requireAdmin, async (req, res) => {
     }
 
     await usuario.update({ activo });
+    // El soft-delete no dispara el ON DELETE SET NULL del FK: si se desactiva a alguien
+    // que es supervisor de otros, hay que soltar esa referencia a mano para que sus
+    // supervisados no queden enviando manuales a un supervisor inaccesible.
+    if (activo === false) {
+      await Usuario.update(
+        { supervisorId: null },
+        { where: { supervisorId: usuario.id, organizacionId: req.user.organizacionId } }
+      );
+    }
     res.json({ success: true, data: { activo } });
   } catch {
     res.status(500).json({ success: false, error: 'Error interno' });
@@ -260,8 +278,13 @@ router.delete('/:id', requireAdmin, async (req, res) => {
       return res.status(403).json({ success: false, error: 'Solo el superadmin puede eliminar admins' });
     }
 
-    await usuario.destroy();
-    res.json({ success: true, data: { message: 'Usuario eliminado' } });
+    await usuario.update({ activo: false });
+    // Mismo motivo que en PATCH /:id/activo: soltar a los supervisados de este usuario.
+    await Usuario.update(
+      { supervisorId: null },
+      { where: { supervisorId: usuario.id, organizacionId: req.user.organizacionId } }
+    );
+    res.json({ success: true, data: { message: 'Usuario desactivado; su conocimiento e historial fueron conservados' } });
   } catch {
     res.status(500).json({ success: false, error: 'Error interno' });
   }

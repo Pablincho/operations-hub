@@ -8,9 +8,11 @@ export function UsuarioModel(sequelize) {
       primaryKey: true
     },
     email: {
+      // La unicidad ya no es una constraint de columna: se aplica con un índice único
+      // parcial (solo entre usuarios activos) en la migración 20260905000025, para que
+      // desactivar a alguien libere su email para un usuario nuevo.
       type: DataTypes.STRING,
       allowNull: false,
-      unique: true,
       validate: { isEmail: true }
     },
     passwordHash: {

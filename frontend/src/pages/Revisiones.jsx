@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { diffWords } from 'diff'
 import api from '@/services/api'
 import { Button } from '@/components/ui/button'

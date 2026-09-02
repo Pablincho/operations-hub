@@ -215,7 +215,7 @@ export default function Asistente() {
 
   const funciones = user?.funciones || []
 
-  useEffect(() => { loadSession() }, [])
+  useEffect(() => { loadSession() }, []) // eslint-disable-line react-hooks/exhaustive-deps -- carga inicial
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, loading])
 
   async function loadSession() {

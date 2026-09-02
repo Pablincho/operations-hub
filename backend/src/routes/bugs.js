@@ -5,7 +5,17 @@ import { BugReport, Usuario } from '../models/index.js';
 const router = Router();
 router.use(verifyJWT);
 
-const MAX_IMAGE_BYTES = 8 * 1024 * 1024; // 8MB base64 limit
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+// El frontend deja adjuntar cualquier image/* (selector de archivo y pegado desde
+// portapapeles), sin reconversión de formato: la validación acá tiene que aceptar
+// lo mismo, no una lista fija de formatos, para no rechazar capturas legítimas
+// (GIF, HEIC de celulares, etc).
+function imageBytes(dataUrl) {
+  const match = /^data:image\/[a-zA-Z0-9.+-]+;base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl || '');
+  if (!match) return null;
+  return Buffer.from(match[1], 'base64').byteLength;
+}
 
 // POST report a bug: all authenticated users
 router.post('/', async (req, res) => {
@@ -14,8 +24,12 @@ router.post('/', async (req, res) => {
     if (!texto?.trim()) {
       return res.status(400).json({ success: false, error: 'El texto es requerido' });
     }
-    if (imagen && Buffer.byteLength(imagen, 'utf8') > MAX_IMAGE_BYTES) {
-      return res.status(400).json({ success: false, error: 'La imagen es demasiado grande (máx 8 MB)' });
+    const bytes = imagen ? imageBytes(imagen) : 0;
+    if (imagen && bytes === null) {
+      return res.status(400).json({ success: false, error: 'Formato de imagen inválido' });
+    }
+    if (bytes > MAX_IMAGE_BYTES) {
+      return res.status(400).json({ success: false, error: 'La imagen es demasiado grande (máx. 5 MB)' });
     }
     const bug = await BugReport.create({
       usuarioId: req.user.id,
@@ -28,7 +42,7 @@ router.post('/', async (req, res) => {
     res.status(201).json({ success: true, data: bug });
   } catch (err) {
     console.error('[bugs] POST error:', err.message, err.stack);
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: 'Error interno' });
   }
 });
 

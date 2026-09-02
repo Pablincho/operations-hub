@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { Op } from 'sequelize';
-import { verifyJWT, requireAdmin } from '../auth.js';
-import { Manual, KnowledgeEntry, Usuario, Organizacion } from '../models/index.js';
+import { verifyJWT, requireAdmin, canAccessFuncion } from '../auth.js';
+import { db, Manual, KnowledgeEntry, Usuario, Organizacion } from '../models/index.js';
 import { generarManual } from '../services/manualService.js';
 import {
   sendManualEnviadoEmail,
@@ -68,6 +68,9 @@ router.get('/pendientes', requireAdmin, async (req, res) => {
 router.get('/:funcion', async (req, res) => {
   try {
     const { funcion } = req.params;
+    if (!canAccessFuncion(req.user, funcion)) {
+      return res.status(403).json({ success: false, error: 'No tenés acceso a esa función' });
+    }
     const manual = await Manual.findOne({
       where: { organizacionId: req.user.organizacionId, funcion, estado: { [Op.ne]: 'obsoleto' } },
       order: [['createdAt', 'DESC']]
@@ -111,6 +114,9 @@ router.get('/:funcion', async (req, res) => {
 router.get('/:funcion/historial', async (req, res) => {
   try {
     const { funcion } = req.params;
+    if (!canAccessFuncion(req.user, funcion)) {
+      return res.status(403).json({ success: false, error: 'No tenés acceso a esa función' });
+    }
     const historial = await Manual.findAll({
       where: { organizacionId: req.user.organizacionId, funcion },
       order: [['createdAt', 'DESC']],
@@ -168,6 +174,7 @@ router.post('/:funcion/generar', async (req, res) => {
           funcion,
           organizacionId: req.user.organizacionId,
           categoria: 'checkin',
+          esSensible: false,
           [Op.or]: [
             { createdAt: { [Op.gt]: current.generadoEn } },
             { updatedAt: { [Op.gt]: current.generadoEn } }
@@ -191,41 +198,73 @@ router.post('/:funcion/generar', async (req, res) => {
     }
 
     // Calculate version for new draft
-    let newVersion;
-    if (current?.estado === 'vigente') {
-      const changedBlocks = Object.keys(contenido).filter(
-        b => contenido[b] !== current.contenido?.[b]
-      ).length;
-      newVersion = nextVersion(current.version, changedBlocks >= 3);
-    } else {
-      newVersion = (current?.version && current.version !== 'Borrador')
-        ? current.version
-        : 'Borrador';
-    }
+    const manual = await db.transaction(async transaction => {
+      const lockedCurrent = await Manual.findOne({
+        where: { organizacionId: req.user.organizacionId, funcion, estado: { [Op.ne]: 'obsoleto' } },
+        order: [['createdAt', 'DESC']],
+        transaction,
+        lock: transaction.LOCK.UPDATE
+      });
+      if ((current?.id || null) !== (lockedCurrent?.id || null)) {
+        const error = new Error('El manual cambió mientras se generaba. Volvé a intentar.');
+        error.status = 409;
+        throw error;
+      }
+      // La comparación de arriba solo detecta un cambio de fila; si es la MISMA fila pero
+      // alguien la mandó a revisión mientras se generaba (llamada a OpenAI de varios segundos),
+      // hay que frenar acá también para no archivar un manual que un supervisor ya está revisando.
+      if (lockedCurrent?.estado === 'en_revision') {
+        const error = new Error('El manual está en revisión. Esperá la respuesta del revisor.');
+        error.status = 400;
+        throw error;
+      }
+
+      let newVersion;
+      if (lockedCurrent?.estado === 'vigente') {
+        const changedBlocks = Object.keys(contenido).filter(
+          b => contenido[b] !== lockedCurrent.contenido?.[b]
+        ).length;
+        newVersion = nextVersion(lockedCurrent.version, changedBlocks >= 3);
+      } else {
+        newVersion = (lockedCurrent?.version && lockedCurrent.version !== 'Borrador')
+          ? lockedCurrent.version
+          : 'Borrador';
+      }
 
     // Archive current borrador or vigente → obsoleto
-    if (current) await current.update({ estado: 'obsoleto' });
+      if (lockedCurrent) await lockedCurrent.update({ estado: 'obsoleto' }, { transaction });
 
     // Also archive any other stale borradores for this function
-    await Manual.update(
-      { estado: 'obsoleto' },
-      { where: { organizacionId: req.user.organizacionId, funcion, estado: 'borrador' } }
-    );
+      await Manual.update(
+        { estado: 'obsoleto' },
+        { where: { organizacionId: req.user.organizacionId, funcion, estado: 'borrador' }, transaction }
+      );
 
-    const manual = await Manual.create({
-      usuarioId: req.user.id,
-      organizacionId: req.user.organizacionId,
-      funcion,
-      version: newVersion,
-      estado: 'borrador',
-      contenido,
-      generadoEn: new Date()
+      return Manual.create({
+        usuarioId: req.user.id,
+        organizacionId: req.user.organizacionId,
+        funcion,
+        version: newVersion,
+        estado: 'borrador',
+        contenido,
+        generadoEn: new Date()
+      }, { transaction });
     });
 
     res.json({ success: true, data: manual });
   } catch (err) {
+    // Primera generación de la función: dos clicks/pestañas simultáneas pueden pasar el
+    // chequeo de id (ambos ven null) y chocar contra el índice único al crear. En ese caso
+    // devolvemos el manual que ganó la carrera en vez de un 500 genérico.
+    if (err.name === 'SequelizeUniqueConstraintError') {
+      const winner = await Manual.findOne({
+        where: { organizacionId: req.user.organizacionId, funcion: req.params.funcion, estado: { [Op.ne]: 'obsoleto' } },
+        order: [['createdAt', 'DESC']]
+      });
+      if (winner) return res.json({ success: true, data: winner });
+    }
     console.error('Error generando manual:', err.message);
-    res.status(500).json({ success: false, error: 'Error interno al generar el manual' });
+    res.status(err.status || 500).json({ success: false, error: err.status ? err.message : 'Error interno al generar el manual' });
   }
 });
 
@@ -330,7 +369,7 @@ router.post('/:funcion/enviar', async (req, res) => {
 router.post('/:id/aprobar', requireAdmin, async (req, res) => {
   try {
     const manual = await Manual.findOne({
-      where: { id: req.params.id, estado: 'en_revision' }
+      where: { id: req.params.id, organizacionId: req.user.organizacionId, estado: 'en_revision' }
     });
     if (!manual) return res.status(404).json({ success: false, error: 'Manual no encontrado o no está en revisión' });
 
@@ -375,8 +414,11 @@ router.post('/:id/aprobar-bloque', requireAdmin, async (req, res) => {
     const { bloque } = req.body;
     if (!bloque) return res.status(400).json({ success: false, error: 'Bloque requerido' });
 
-    const manual = await Manual.findOne({ where: { id: req.params.id, estado: 'en_revision' } });
+    const manual = await Manual.findOne({ where: { id: req.params.id, organizacionId: req.user.organizacionId, estado: 'en_revision' } });
     if (!manual) return res.status(404).json({ success: false, error: 'Manual no encontrado' });
+    if (!Object.prototype.hasOwnProperty.call(manual.contenido || {}, bloque)) {
+      return res.status(400).json({ success: false, error: 'Bloque inválido para este manual' });
+    }
 
     const ocupante = await Usuario.findOne({ where: { id: manual.usuarioId, supervisorId: req.user.id } });
     if (!ocupante && req.user.rol !== 'superadmin') {
@@ -418,8 +460,11 @@ router.post('/:id/devolver-bloque', requireAdmin, async (req, res) => {
     const { bloque, observacion } = req.body;
     if (!bloque) return res.status(400).json({ success: false, error: 'Bloque requerido' });
 
-    const manual = await Manual.findOne({ where: { id: req.params.id, estado: 'en_revision' } });
+    const manual = await Manual.findOne({ where: { id: req.params.id, organizacionId: req.user.organizacionId, estado: 'en_revision' } });
     if (!manual) return res.status(404).json({ success: false, error: 'Manual no encontrado' });
+    if (!Object.prototype.hasOwnProperty.call(manual.contenido || {}, bloque)) {
+      return res.status(400).json({ success: false, error: 'Bloque inválido para este manual' });
+    }
 
     const ocupante = await Usuario.findOne({ where: { id: manual.usuarioId, supervisorId: req.user.id } });
     if (!ocupante && req.user.rol !== 'superadmin') {
@@ -462,7 +507,7 @@ router.post('/:id/devolver', requireAdmin, async (req, res) => {
     }
 
     const manual = await Manual.findOne({
-      where: { id: req.params.id, estado: 'en_revision' }
+      where: { id: req.params.id, organizacionId: req.user.organizacionId, estado: 'en_revision' }
     });
     if (!manual) return res.status(404).json({ success: false, error: 'Manual no encontrado o no está en revisión' });
 

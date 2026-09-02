@@ -44,14 +44,9 @@ export async function llamarAsistente(user, manuales, fallbackEntries, sensibleE
       fallbackEntries.map(e => `[${e.funcion}] ${e.titulo}:\n${e.contenido}`).join('\n\n')
     : '';
 
-  // Sensitive entries: included in context, authorized to show, but response won't be persisted
-  const sensibleText = sensibleEntries.length
-    ? '\n\n--- Información sensible (credenciales y datos de acceso) ---\n' +
-      'El usuario que consulta tiene autorización sobre estos datos y esta respuesta no se almacena. Si los solicita, mostrá el valor exacto tal como está registrado.\n\n' +
-      sensibleEntries.map(e => `[${e.funcion}] ${e.titulo}:\n${e.contenido}`).join('\n\n')
-    : '';
-
-  const usedSensitive = sensibleEntries.length > 0;
+  // Defensa adicional: este servicio nunca incorpora entradas sensibles al prompt.
+  const sensibleText = '';
+  const usedSensitive = false;
 
   const contexto = (manualesText + fallbackText + sensibleText) || 'Sin información cargada todavía para estas funciones.';
 
@@ -78,7 +73,7 @@ ${contexto}${directorioSection}
 REGLAS ESTRICTAS:
 - Respondé EXCLUSIVAMENTE usando la base de conocimiento provista arriba.
 - Si la respuesta no está en la base de conocimiento, respondé: "Esa información no está registrada todavía en el sistema."
-- No inventes datos. Si un dato (bancario, contraseña, usuario, acceso) figura en la base de conocimiento, proporcionalo cuando te lo pidan; si no figura, no lo inventes.
+- No inventes datos. Nunca proporciones contraseñas, tokens, PIN, usuarios, claves ni datos bancarios; esa información permanece fuera del asistente.
 - Sistema contable de la empresa: Albor.
 - Si te preguntan por una función que no corresponde a este puesto, indicá que le corresponde a otro responsable.
 - Usá siempre voz impersonal y tono institucional: "se debe", "corresponde", "el procedimiento indica", "está establecido que". NUNCA uses primera persona ("yo", "utilizo", "tengo", "ingreso") ni segunda persona directa ("vos", "te"). Aunque la base de conocimiento esté escrita en primera persona, reformulá siempre en tercera persona o voz impersonal. Escribí como un manual o reglamento interno.

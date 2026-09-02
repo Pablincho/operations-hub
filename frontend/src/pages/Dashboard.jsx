@@ -24,7 +24,7 @@ export default function Dashboard() {
   const funciones = user?.funciones || []
   const isAdmin = ['admin', 'superadmin'].includes(user?.rol)
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps -- carga inicial
 
   async function load() {
     try {

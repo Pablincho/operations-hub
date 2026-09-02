@@ -173,21 +173,8 @@ router.post('/mensaje', async (req, res) => {
       });
     }
 
-    // Sensitive entries: superadmin sees all; operativo sees their own functions; admin sees none
-    let sensibleEntries = [];
-    if (req.user.rol === 'superadmin') {
-      sensibleEntries = await KnowledgeEntry.findAll({
-        where: { organizacionId: req.user.organizacionId, esSensible: true }
-      });
-    } else if (req.user.rol === 'operativo' && userFunciones.length > 0) {
-      sensibleEntries = await KnowledgeEntry.findAll({
-        where: {
-          organizacionId: req.user.organizacionId,
-          funcion: { [Op.in]: userFunciones },
-          esSensible: true
-        }
-      });
-    }
+    // Los datos sensibles nunca se envían a proveedores de IA.
+    const sensibleEntries = [];
 
     // Directorio de personas: mapea nombre → funciones para que el asistente
     // pueda asociar nombres mencionados en respuestas con su puesto en la empresa.

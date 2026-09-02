@@ -1,6 +1,8 @@
 import './loadEnv.js';
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import { rateLimit } from 'express-rate-limit';
 import { db, Organizacion } from './src/models/index.js';
 import authRoutes from './src/routes/auth.js';
 import usuariosRoutes from './src/routes/usuarios.js';
@@ -13,6 +15,26 @@ import { initScheduler } from './src/scheduler.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// Railway hace de reverse proxy delante de la app: confiamos en un solo hop
+// para que req.ip refleje al cliente real (X-Forwarded-For) y el rate limit
+// se aplique por usuario, no compartido entre toda la organización.
+app.set('trust proxy', 1);
+
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 300,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { success: false, error: 'Demasiadas solicitudes. Intentá nuevamente más tarde.' }
+});
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { success: false, error: 'Demasiados intentos. Intentá nuevamente en 15 minutos.' }
+});
 
 const allowedOrigins = new Set([
   process.env.FRONTEND_URL,
@@ -31,7 +53,12 @@ app.use(cors({
   },
   credentials: true
 }));
-app.use(express.json({ limit: '10mb' }));
+app.use(helmet());
+app.use('/api', apiLimiter);
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/recover', authLimiter);
+app.use('/api/bugs', express.json({ limit: '7mb' }));
+app.use(express.json({ limit: '256kb' }));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/usuarios', usuariosRoutes);

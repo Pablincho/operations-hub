@@ -15,13 +15,12 @@ const BLOQUES = {
 };
 
 // Regla de enmascarado para respuestas con datos sensibles (reutilizada en ambos prompts)
-const REGLA_SENSIBLE = `Las respuestas marcadas [SENSIBLE] contienen datos confidenciales (usuarios, contraseñas, claves, números de cuenta o de documento). De esas respuestas incluí SOLO la información general no confidencial (nombre del sistema, herramienta o proceso) y reemplazá CUALQUIER credencial, usuario, contraseña, clave, PIN o número confidencial por "***". Nunca escribas una credencial real en el texto.`;
+const REGLA_SENSIBLE = 'Las respuestas sensibles fueron excluidas antes de esta solicitud. No infieras ni inventes credenciales o datos confidenciales.';
 
 // Generates a block from scratch using all current entries for that block
 async function generarBloqueNuevo(funcion, nombreBloque, allQas) {
   const texto = allQas
-    .map(({ titulo, contenido, esSensible }) =>
-      `${esSensible ? '[SENSIBLE] ' : ''}P: ${titulo}\nR: ${contenido}`)
+    .map(({ titulo, contenido }) => `P: ${titulo}\nR: ${contenido}`)
     .join('\n\n');
 
   const response = await getOpenAI().chat.completions.create({
@@ -52,10 +51,9 @@ ${texto}`
 async function actualizarBloqueMinimo(funcion, nombreBloque, existingText, newQas, allQas) {
   const changedTitles = new Set(newQas.map(q => q.titulo));
   const texto = allQas
-    .map(({ titulo, contenido, esSensible }) => {
+    .map(({ titulo, contenido }) => {
       const estado = changedTitles.has(titulo) ? '[MODIFICADA]' : '[SIN CAMBIOS]';
-      const sens = esSensible ? ' [SENSIBLE]' : '';
-      return `${estado}${sens} P: ${titulo}\nR: ${contenido}`;
+      return `${estado} P: ${titulo}\nR: ${contenido}`;
     })
     .join('\n\n');
 
@@ -96,10 +94,8 @@ async function generarBloque(funcion, nombreBloque, existingText, newQas, allQas
 }
 
 export async function generarManual(funcion, organizacionId, KnowledgeEntry, currentManual) {
-  // Incluye entradas sensibles (el hook afterFind las descifra); el prompt enmascara
-  // las credenciales con *** pero conserva la info general (ej: nombre del sistema).
   const entries = await KnowledgeEntry.findAll({
-    where: { funcion, organizacionId, categoria: 'checkin' },
+    where: { funcion, organizacionId, categoria: 'checkin', esSensible: false },
     attributes: ['titulo', 'contenido', 'bloque', 'esSensible', 'createdAt', 'updatedAt'],
     order: [['createdAt', 'ASC']]
   });
