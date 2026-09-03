@@ -23,12 +23,15 @@ export function NotificationsProvider({ children }) {
         setTieneCheckin(false)
       } else {
         const res = await api.get('/checkin/hoy')
-        const { data: sessions = [], dailyCounts = {}, primaryStatusMap = {} } = res.data
+        const { data: sessions = [], primaryStatusMap = {}, cycleStatusMap = {} } = res.data
         const funciones = user.funciones || []
         const pendiente = funciones.some(fn => {
           if (primaryStatusMap[fn] === false) return false
+          const cycle = cycleStatusMap[fn]
+          if (!cycle || cycle.estado === 'completado') return false
+          if (cycle.estado !== 'relevamiento' && !(cycle.esLegacy && cycle.estado === 'configuracion')) return false
           const sesionHoy = sessions.find(s => s.funcion === fn)
-          return !sesionHoy?.completado && (dailyCounts[fn] || 0) < 20
+          return !sesionHoy?.completado
         })
         setTieneCheckin(pendiente)
       }
@@ -37,8 +40,15 @@ export function NotificationsProvider({ children }) {
     // Revisiones: manuales pendientes (solo admins)
     if (isAdmin) {
       try {
-        const res = await api.get('/manual/pendientes')
-        setTieneRevisiones((res.data.data || []).length > 0)
+        const [manualsRes, cyclesRes] = await Promise.all([
+          api.get('/manual/pendientes'),
+          api.get('/manual-cycles/puestos')
+        ])
+        const pendingManuals = (manualsRes.data.data || []).length > 0
+        const pendingQuestions = (cyclesRes.data.data || []).some(position =>
+          (position.ciclo?.conteoPreguntas?.propuesta || 0) > 0
+        )
+        setTieneRevisiones(pendingManuals || pendingQuestions)
       } catch {}
     }
   }, [user, isAdmin])

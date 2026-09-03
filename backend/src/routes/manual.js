@@ -1,8 +1,10 @@
 import { Router } from 'express';
 import { Op } from 'sequelize';
 import { verifyJWT, requireAdmin, canAccessFuncion } from '../auth.js';
-import { db, Manual, KnowledgeEntry, Usuario, Organizacion } from '../models/index.js';
-import { generarManual } from '../services/manualService.js';
+import { db, Manual, ManualCycle, ManualQuestion, KnowledgeEntry, Usuario, Organizacion } from '../models/index.js';
+import { generarManualConAgentes, recuperarCicloAtascado } from '../services/manualAgentService.js';
+import { userIsPrimaryOccupant } from '../services/positionService.js';
+import { cycleAllowsGeneration } from '../manualCyclePolicy.js';
 import {
   sendManualEnviadoEmail,
   sendManualAprobadoEmail,
@@ -32,7 +34,7 @@ async function getContenidoUltimaVigente(organizacionId, funcion, excludeId = nu
   return m?.contenido || null;
 }
 
-// GET pending manuals for review (admin/superadmin sees manuals of their supervisees)
+// GET pending manuals for review (only manuals of currently assigned supervisees)
 router.get('/pendientes', requireAdmin, async (req, res) => {
   try {
     const supervisees = await Usuario.findAll({
@@ -130,6 +132,7 @@ router.get('/:funcion/historial', async (req, res) => {
 
 // POST generate/regenerate: archives previous and creates new version
 router.post('/:funcion/generar', async (req, res) => {
+  let cycle = null;
   try {
     const { funcion } = req.params;
 
@@ -138,22 +141,18 @@ router.post('/:funcion/generar', async (req, res) => {
       return res.status(403).json({ success: false, error: 'No tenés esa función asignada' });
     }
 
-    // Only the primary occupant can generate the manual
-    const genOrg = await Organizacion.findByPk(req.user.organizacionId, { attributes: ['config'] });
-    const genOverrideId = genOrg?.config?.primaryOccupants?.[funcion];
-    let genIsSecondary;
-    if (genOverrideId) {
-      genIsSecondary = genOverrideId !== req.user.id;
-    } else {
-      const earliestEntry = await KnowledgeEntry.findOne({
-        where: { organizacionId: req.user.organizacionId, funcion, categoria: 'checkin' },
-        order: [['createdAt', 'ASC']],
-        attributes: ['usuarioId']
-      });
-      genIsSecondary = earliestEntry && earliestEntry.usuarioId !== req.user.id;
-    }
-    if (genIsSecondary) {
+    if (!(await userIsPrimaryOccupant(req.user.id, req.user.organizacionId, funcion))) {
       return res.status(403).json({ success: false, error: 'Solo el ocupante principal puede generar el manual de este puesto.' });
+    }
+
+    cycle = await ManualCycle.findOne({
+      where: { organizacionId: req.user.organizacionId, funcion },
+      order: [['numero', 'DESC']]
+    });
+    if (!cycle) return res.status(409).json({ success: false, error: 'El supervisor debe crear el ciclo del manual antes de generarlo.' });
+    await recuperarCicloAtascado(cycle);
+    if (!cycleAllowsGeneration(cycle)) {
+      return res.status(409).json({ success: false, error: 'El supervisor debe cerrar el relevamiento antes de generar el manual.' });
     }
 
     // Find current active (non-obsoleto) manual: per function (org-wide)
@@ -181,7 +180,8 @@ router.post('/:funcion/generar', async (req, res) => {
           ]
         }
       });
-      if (changedCount === 0) {
+      const hasReviewFeedback = !!current.observaciones || Object.values(current.bloquesEstado || {}).some(block => block.estado === 'devuelto');
+      if (changedCount === 0 && !hasReviewFeedback) {
         return res.status(400).json({
           success: false,
           error: 'No hay respuestas nuevas o editadas desde la última generación. Completá un check-in o editá una respuesta primero.'
@@ -189,8 +189,34 @@ router.post('/:funcion/generar', async (req, res) => {
       }
     }
 
-    const contenido = await generarManual(funcion, req.user.organizacionId, KnowledgeEntry, current);
+    const previousCycleState = cycle.estado;
+    const [claimedCycle] = await ManualCycle.update(
+      { estado: 'generando' },
+      { where: { id: cycle.id, estado: previousCycleState } }
+    );
+    if (claimedCycle !== 1) {
+      return res.status(409).json({ success: false, error: 'Ya hay una generación en curso para este ciclo.' });
+    }
+    await cycle.reload();
+    let agentResult;
+    try {
+      agentResult = await generarManualConAgentes(cycle, current);
+    } catch (error) {
+      await cycle.update({ estado: previousCycleState });
+      throw error;
+    }
+    if (agentResult.requiereMasConocimiento) {
+      await cycle.update({ estado: 'relevamiento', relevamientoCerradoEn: null, esLegacy: false });
+      return res.status(409).json({
+        success: false,
+        code: 'REQUIERE_MAS_CONOCIMIENTO',
+        error: 'El verificador detectó información faltante. Se generaron preguntas de seguimiento antes de redactar el manual.',
+        data: { preguntas: agentResult.preguntas, verificacion: agentResult.verificacion }
+      });
+    }
+    const contenido = agentResult.contenido;
     if (!Object.keys(contenido).length) {
+      await cycle.update({ estado: previousCycleState });
       return res.status(400).json({
         success: false,
         error: 'No hay suficientes respuestas para generar el manual. Completá el check-in primero.'
@@ -243,6 +269,7 @@ router.post('/:funcion/generar', async (req, res) => {
       return Manual.create({
         usuarioId: req.user.id,
         organizacionId: req.user.organizacionId,
+        cicloId: cycle.id,
         funcion,
         version: newVersion,
         estado: 'borrador',
@@ -251,8 +278,11 @@ router.post('/:funcion/generar', async (req, res) => {
       }, { transaction });
     });
 
-    res.json({ success: true, data: manual });
+    await cycle.update({ estado: 'borrador' });
+
+    res.json({ success: true, data: manual, verificacion: agentResult.verificacion });
   } catch (err) {
+    if (cycle?.estado === 'generando') await cycle.update({ estado: 'listo_para_generar' }).catch(() => {});
     // Primera generación de la función: dos clicks/pestañas simultáneas pueden pasar el
     // chequeo de id (ambos ven null) y chocar contra el índice único al crear. En ese caso
     // devolvemos el manual que ganó la carrera en vez de un 500 genérico.
@@ -335,6 +365,12 @@ router.post('/:funcion/enviar', async (req, res) => {
         aprobadoPor: req.user.id,
         aprobadoEn: new Date()
       });
+      if (manual.cicloId) {
+        await ManualCycle.update(
+          { estado: 'completado', completadoEn: new Date() },
+          { where: { id: manual.cicloId, organizacionId: req.user.organizacionId } }
+        );
+      }
       return res.json({ success: true, data: manual });
     }
 
@@ -350,6 +386,7 @@ router.post('/:funcion/enviar', async (req, res) => {
       observaciones: null,
       bloquesEstado
     });
+    if (manual.cicloId) await ManualCycle.update({ estado: 'en_revision' }, { where: { id: manual.cicloId } });
 
     // Email al supervisor
     try {
@@ -373,11 +410,10 @@ router.post('/:id/aprobar', requireAdmin, async (req, res) => {
     });
     if (!manual) return res.status(404).json({ success: false, error: 'Manual no encontrado o no está en revisión' });
 
-    // Verify the occupant reports to this reviewer
     const ocupante = await Usuario.findOne({
-      where: { id: manual.usuarioId, supervisorId: req.user.id }
+      where: { id: manual.usuarioId, supervisorId: req.user.id, organizacionId: req.user.organizacionId }
     });
-    if (!ocupante && req.user.rol !== 'superadmin') {
+    if (!ocupante) {
       return res.status(403).json({ success: false, error: 'No tenés permiso para aprobar este manual' });
     }
 
@@ -388,12 +424,64 @@ router.post('/:id/aprobar', requireAdmin, async (req, res) => {
       if (manual.contenido[bloque]) bloquesEstadoAll[bloque] = { estado: 'aprobado', observacion: null };
     }
 
-    await manual.update({
-      estado: 'vigente',
-      aprobadoPor: req.user.id,
-      aprobadoEn: new Date(),
-      bloquesEstado: bloquesEstadoAll
+    let nextCycle = null;
+    const direction = req.body.proximoCiclo || {};
+    const nextTopics = Array.isArray(direction.temas)
+      ? [...new Set(direction.temas.map(value => String(value).trim()).filter(Boolean))].slice(0, 20)
+      : [];
+    const nextOrientation = String(direction.orientacion || '').trim().slice(0, 5000) || null;
+    await db.transaction(async transaction => {
+      const lockedManual = await Manual.findOne({
+        where: { id: manual.id, estado: 'en_revision' }, transaction, lock: transaction.LOCK.UPDATE
+      });
+      if (!lockedManual) {
+        const error = new Error('El manual ya fue resuelto por otra operación');
+        error.status = 409;
+        throw error;
+      }
+      await lockedManual.update({
+        estado: 'vigente',
+        aprobadoPor: req.user.id,
+        aprobadoEn: new Date(),
+        bloquesEstado: bloquesEstadoAll
+      }, { transaction });
+      if (lockedManual.cicloId) {
+        const cycle = await ManualCycle.findByPk(lockedManual.cicloId, { transaction, lock: transaction.LOCK.UPDATE });
+        if (!cycle) return;
+        await cycle.update({
+          estado: 'completado',
+          completadoEn: new Date(),
+          proximosTemas: nextTopics,
+          proximaOrientacion: nextOrientation,
+          configProximoCiclo: {
+            preguntasPorEntrega: cycle.preguntasPorEntrega,
+            frecuencia: cycle.frecuencia,
+            intervaloDias: cycle.intervaloDias,
+            objetivoPreguntas: cycle.objetivoPreguntas,
+            requiereAprobacionPreguntas: cycle.requiereAprobacionPreguntas
+          }
+        }, { transaction });
+        if (direction.iniciarAhora) {
+          nextCycle = await ManualCycle.create({
+            organizacionId: cycle.organizacionId,
+            funcion: cycle.funcion,
+            numero: cycle.numero + 1,
+            ocupanteId: cycle.ocupanteId,
+            supervisorId: req.user.id,
+            estado: 'configuracion',
+            temas: nextTopics.length ? nextTopics : (cycle.heredarOrientacion ? cycle.temas : []),
+            orientacion: nextOrientation || (cycle.heredarOrientacion ? cycle.orientacion : null),
+            heredarOrientacion: cycle.heredarOrientacion,
+            preguntasPorEntrega: cycle.preguntasPorEntrega,
+            frecuencia: cycle.frecuencia,
+            intervaloDias: cycle.intervaloDias,
+            objetivoPreguntas: cycle.objetivoPreguntas,
+            requiereAprobacionPreguntas: cycle.requiereAprobacionPreguntas
+          }, { transaction });
+        }
+      }
     });
+    await manual.reload();
 
     // Email al ocupante
     try {
@@ -402,9 +490,9 @@ router.post('/:id/aprobar', requireAdmin, async (req, res) => {
       console.error('Error enviando email de aprobación:', emailErr.message);
     }
 
-    res.json({ success: true, data: manual });
-  } catch {
-    res.status(500).json({ success: false, error: 'Error interno' });
+    res.json({ success: true, data: manual, nextCycle });
+  } catch (error) {
+    res.status(error.status || 500).json({ success: false, error: error.status ? error.message : 'Error interno' });
   }
 });
 
@@ -420,8 +508,8 @@ router.post('/:id/aprobar-bloque', requireAdmin, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Bloque inválido para este manual' });
     }
 
-    const ocupante = await Usuario.findOne({ where: { id: manual.usuarioId, supervisorId: req.user.id } });
-    if (!ocupante && req.user.rol !== 'superadmin') {
+    const ocupante = await Usuario.findOne({ where: { id: manual.usuarioId, supervisorId: req.user.id, organizacionId: req.user.organizacionId } });
+    if (!ocupante) {
       return res.status(403).json({ success: false, error: 'Sin permiso' });
     }
 
@@ -431,24 +519,9 @@ router.post('/:id/aprobar-bloque', requireAdmin, async (req, res) => {
     const allAprobados = Object.keys(bloquesEstado).length > 0 &&
       Object.values(bloquesEstado).every(b => b.estado === 'aprobado');
 
-    const updates = { bloquesEstado };
-    if (allAprobados) {
-      updates.estado = 'vigente';
-      updates.aprobadoPor = req.user.id;
-      updates.aprobadoEn = new Date();
-    }
+    await manual.update({ bloquesEstado });
 
-    await manual.update(updates);
-
-    if (allAprobados && ocupante) {
-      try {
-        await sendManualAprobadoEmail(ocupante.email, manual.funcion, req.user.nombre);
-      } catch (emailErr) {
-        console.error('Error enviando email de aprobación:', emailErr.message);
-      }
-    }
-
-    res.json({ success: true, data: { ...manual.toJSON(), allAprobados } });
+    res.json({ success: true, data: { ...manual.toJSON(), allAprobados: false, requiereCierre: allAprobados } });
   } catch {
     res.status(500).json({ success: false, error: 'Error interno' });
   }
@@ -466,8 +539,8 @@ router.post('/:id/devolver-bloque', requireAdmin, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Bloque inválido para este manual' });
     }
 
-    const ocupante = await Usuario.findOne({ where: { id: manual.usuarioId, supervisorId: req.user.id } });
-    if (!ocupante && req.user.rol !== 'superadmin') {
+    const ocupante = await Usuario.findOne({ where: { id: manual.usuarioId, supervisorId: req.user.id, organizacionId: req.user.organizacionId } });
+    if (!ocupante) {
       return res.status(403).json({ success: false, error: 'Sin permiso' });
     }
 
@@ -479,6 +552,9 @@ router.post('/:id/devolver-bloque', requireAdmin, async (req, res) => {
     if (allResolved) updates.estado = 'borrador';
 
     await manual.update(updates);
+    if (allResolved && manual.cicloId) {
+      await ManualCycle.update({ estado: 'borrador' }, { where: { id: manual.cicloId } });
+    }
 
     if (allResolved && ocupante) {
       const obs = Object.values(bloquesEstado)
@@ -501,9 +577,15 @@ router.post('/:id/devolver-bloque', requireAdmin, async (req, res) => {
 // POST return manual with observations
 router.post('/:id/devolver', requireAdmin, async (req, res) => {
   try {
-    const { observaciones } = req.body;
+    const { observaciones, tipo = 'redaccion', preguntaSeguimiento } = req.body;
     if (!observaciones?.trim()) {
       return res.status(400).json({ success: false, error: 'Las observaciones son requeridas' });
+    }
+    if (!['redaccion', 'falta_conocimiento'].includes(tipo)) {
+      return res.status(400).json({ success: false, error: 'Tipo de devolución inválido' });
+    }
+    if (tipo === 'falta_conocimiento' && !String(preguntaSeguimiento || '').trim()) {
+      return res.status(400).json({ success: false, error: 'Indicá la pregunta de seguimiento necesaria' });
     }
 
     const manual = await Manual.findOne({
@@ -512,13 +594,46 @@ router.post('/:id/devolver', requireAdmin, async (req, res) => {
     if (!manual) return res.status(404).json({ success: false, error: 'Manual no encontrado o no está en revisión' });
 
     const ocupante = await Usuario.findOne({
-      where: { id: manual.usuarioId, supervisorId: req.user.id }
+      where: { id: manual.usuarioId, supervisorId: req.user.id, organizacionId: req.user.organizacionId }
     });
-    if (!ocupante && req.user.rol !== 'superadmin') {
+    if (!ocupante) {
       return res.status(403).json({ success: false, error: 'No tenés permiso para devolver este manual' });
     }
 
-    await manual.update({ estado: 'borrador', observaciones: observaciones.trim() });
+    await db.transaction(async transaction => {
+      const lockedManual = await Manual.findOne({
+        where: { id: manual.id, estado: 'en_revision' }, transaction, lock: transaction.LOCK.UPDATE
+      });
+      if (!lockedManual) {
+        const error = new Error('El manual ya fue resuelto por otra operación');
+        error.status = 409;
+        throw error;
+      }
+      await lockedManual.update({ estado: 'borrador', observaciones: observaciones.trim() }, { transaction });
+      if (!lockedManual.cicloId) return;
+      const cycle = await ManualCycle.findByPk(lockedManual.cicloId, { transaction, lock: transaction.LOCK.UPDATE });
+      if (cycle && tipo === 'falta_conocimiento') {
+        const order = await ManualQuestion.count({ where: { cicloId: cycle.id }, transaction });
+        await ManualQuestion.create({
+          cicloId: cycle.id,
+          organizacionId: cycle.organizacionId,
+          texto: String(preguntaSeguimiento).trim(),
+          bloque: 'B4',
+          tema: 'Faltante indicado por el supervisor',
+          objetivo: observaciones.trim(),
+          origen: 'supervisor_revision',
+          prioridad: 'importante',
+          estado: 'aprobada',
+          orden: order,
+          aprobadaPor: req.user.id,
+          aprobadaEn: new Date()
+        }, { transaction });
+        await cycle.update({ estado: 'relevamiento', relevamientoCerradoEn: null, esLegacy: false }, { transaction });
+      } else if (cycle) {
+        await cycle.update({ estado: 'borrador' }, { transaction });
+      }
+    });
+    await manual.reload();
 
     // Email al ocupante
     try {
@@ -528,8 +643,8 @@ router.post('/:id/devolver', requireAdmin, async (req, res) => {
     }
 
     res.json({ success: true, data: manual });
-  } catch {
-    res.status(500).json({ success: false, error: 'Error interno' });
+  } catch (error) {
+    res.status(error.status || 500).json({ success: false, error: error.status ? error.message : 'Error interno' });
   }
 });
 

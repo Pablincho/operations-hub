@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { FUNC_ICONS, FUNC_COLORS } from '@/lib/utils'
 import { useNotifications } from '@/contexts/NotificationsContext'
 import { useAuth } from '@/contexts/AuthContext'
+import CycleManagement from '@/components/CycleManagement'
 import { useTour } from '@/lib/tour'
 import { CheckCircle2, ChevronDown, ChevronUp, Loader2, RotateCcw, ClipboardCheck, GitCompare, FileText, X, HelpCircle } from 'lucide-react'
 
@@ -18,6 +19,13 @@ const BLOQUE_NOMBRES = {
   B5: 'Relaciones e interfaces',
   B6: 'Herramientas y sistemas'
 }
+
+const NEXT_CYCLE_TOPICS = [
+  'Funciones y responsabilidades', 'Procesos críticos', 'Excepciones e imprevistos',
+  'Controles y riesgos', 'Relaciones con otras áreas', 'Proveedores y organismos externos',
+  'Herramientas y sistemas', 'Conocimientos difíciles de transferir',
+  'Estacionalidad y calendario', 'Mejoras y oportunidades de automatización'
+]
 
 function WordDiff({ oldText, newText }) {
   if (!oldText) return <p className="text-xs leading-relaxed whitespace-pre-wrap">{newText}</p>
@@ -146,8 +154,14 @@ function ManualCard({ manual: initialManual, onResolved, isFirst }) {
   const [showDiff, setShowDiff] = useState(true)
   const [showDevolverTodo, setShowDevolverTodo] = useState(false)
   const [observaciones, setObservaciones] = useState('')
+  const [returnType, setReturnType] = useState('redaccion')
+  const [followupQuestion, setFollowupQuestion] = useState('')
   const [approvingAll, setApprovingAll] = useState(false)
   const [returningAll, setReturningAll] = useState(false)
+  const [showApproveDialog, setShowApproveDialog] = useState(false)
+  const [nextTopics, setNextTopics] = useState([])
+  const [nextOrientation, setNextOrientation] = useState('')
+  const [startNextCycle, setStartNextCycle] = useState(false)
 
   const color = FUNC_COLORS[manual.funcion] || '#1a3a1a'
   const bloques = Object.entries(BLOQUE_NOMBRES).filter(([k]) => manual.contenido?.[k])
@@ -169,6 +183,7 @@ function ManualCard({ manual: initialManual, onResolved, isFirst }) {
       onResolved(manual.id)
     } else {
       setManual(prev => ({ ...prev, bloquesEstado: updated.bloquesEstado }))
+      if (updated.requiereCierre) setShowApproveDialog(true)
     }
   }
 
@@ -185,7 +200,15 @@ function ManualCard({ manual: initialManual, onResolved, isFirst }) {
   async function aprobarTodo() {
     setApprovingAll(true)
     try {
-      await api.post(`/manual/${manual.id}/aprobar`)
+      await api.post(`/manual/${manual.id}/aprobar`, {
+        proximoCiclo: {
+          temas: nextTopics,
+          orientacion: nextOrientation,
+          iniciarAhora: startNextCycle
+        }
+      })
+      setShowApproveDialog(false)
+      window.dispatchEvent(new Event('manual-cycle-changed'))
       onResolved(manual.id)
     } catch (err) {
       alert(err.response?.data?.error || 'Error al aprobar')
@@ -196,9 +219,14 @@ function ManualCard({ manual: initialManual, onResolved, isFirst }) {
     if (!observaciones.trim()) return
     setReturningAll(true)
     try {
-      await api.post(`/manual/${manual.id}/devolver`, { observaciones })
+      await api.post(`/manual/${manual.id}/devolver`, {
+        observaciones,
+        tipo: returnType,
+        preguntaSeguimiento: returnType === 'falta_conocimiento' ? followupQuestion : undefined
+      })
       setShowDevolverTodo(false)
       setObservaciones('')
+      setFollowupQuestion('')
       onResolved(manual.id)
     } catch (err) {
       alert(err.response?.data?.error || 'Error al devolver')
@@ -243,7 +271,7 @@ function ManualCard({ manual: initialManual, onResolved, isFirst }) {
                 </button>
               </div>
             )}
-            <Button size="sm" onClick={aprobarTodo} disabled={approvingAll}
+            <Button size="sm" onClick={() => setShowApproveDialog(true)} disabled={approvingAll}
               className="gap-1 text-xs h-7 bg-green-600 hover:bg-green-700 text-white">
               {approvingAll ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
               Aprobar todo
@@ -288,6 +316,27 @@ function ManualCard({ manual: initialManual, onResolved, isFirst }) {
         </div>
       </CardContent>
 
+      <Dialog open={showApproveDialog} onOpenChange={setShowApproveDialog}>
+        <DialogContent aria-describedby={undefined} className="max-w-2xl">
+          <DialogHeader><DialogTitle>Aprobar manual y orientar lo próximo</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">Antes de cerrar este ciclo, indicá en qué temas querés hacer más hincapié en las próximas preguntas. Podés dejar todo vacío si no hay un foco especial.</p>
+          <div className="grid grid-cols-2 gap-2 max-h-48 overflow-auto">
+            {NEXT_CYCLE_TOPICS.map(topic => <label key={topic} className="flex items-start gap-2 rounded-lg border p-2 text-xs cursor-pointer">
+              <input type="checkbox" className="mt-0.5" checked={nextTopics.includes(topic)} onChange={() => setNextTopics(prev => prev.includes(topic) ? prev.filter(item => item !== topic) : [...prev, topic])} />
+              {topic}
+            </label>)}
+          </div>
+          <Textarea value={nextOrientation} onChange={event => setNextOrientation(event.target.value)} rows={3} placeholder="Orientación libre para las próximas preguntas..." />
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={startNextCycle} onChange={event => setStartNextCycle(event.target.checked)} />Iniciar el próximo ciclo ahora</label>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowApproveDialog(false)}>Cancelar</Button>
+            <Button onClick={aprobarTodo} disabled={approvingAll} className="gap-1 bg-green-600 hover:bg-green-700 text-white">
+              {approvingAll ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} Aprobar y cerrar ciclo
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Devolver todo dialog */}
       <Dialog open={showDevolverTodo} onOpenChange={setShowDevolverTodo}>
         <DialogContent aria-describedby={undefined}>
@@ -295,11 +344,25 @@ function ManualCard({ manual: initialManual, onResolved, isFirst }) {
           <p className="text-sm text-muted-foreground">
             El manual volverá a borrador. El ocupante recibirá tus observaciones y podrá corregir antes de reenviar.
           </p>
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={() => setReturnType('redaccion')} className={`rounded-lg border p-3 text-left text-xs ${returnType === 'redaccion' ? 'border-orange-500 bg-orange-50' : ''}`}>
+              <span className="font-semibold block">Corregir redacción</span>
+              La información existe, pero el texto debe ajustarse.
+            </button>
+            <button onClick={() => setReturnType('falta_conocimiento')} className={`rounded-lg border p-3 text-left text-xs ${returnType === 'falta_conocimiento' ? 'border-orange-500 bg-orange-50' : ''}`}>
+              <span className="font-semibold block">Falta conocimiento</span>
+              Hay que volver a preguntarle al ocupante.
+            </button>
+          </div>
           <Textarea placeholder="Describí qué debe corregir o mejorar..."
             value={observaciones} onChange={e => setObservaciones(e.target.value)} rows={4} autoFocus />
+          {returnType === 'falta_conocimiento' && (
+            <Textarea placeholder="Escribí la pregunta concreta que debe responder el ocupante..."
+              value={followupQuestion} onChange={e => setFollowupQuestion(e.target.value)} rows={2} />
+          )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setShowDevolverTodo(false); setObservaciones('') }}>Cancelar</Button>
-            <Button onClick={devolverTodo} disabled={returningAll || !observaciones.trim()}
+            <Button variant="outline" onClick={() => { setShowDevolverTodo(false); setObservaciones(''); setFollowupQuestion(''); setReturnType('redaccion') }}>Cancelar</Button>
+            <Button onClick={devolverTodo} disabled={returningAll || !observaciones.trim() || (returnType === 'falta_conocimiento' && !followupQuestion.trim())}
               className="bg-orange-600 hover:bg-orange-700 text-white gap-1">
               {returningAll ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />}
               Devolver
@@ -341,7 +404,7 @@ export default function Revisiones() {
       {
         popover: {
           title: 'Revisiones',
-          description: 'Acá llegan los manuales que tus supervisados envían a aprobación. Cuando uno se envía, queda "En revisión" y esa persona no puede editarlo hasta que vos respondas. Si ahora mismo no hay ninguno pendiente, es porque están todos al día. Esta pantalla se actualiza sola apenas alguien te envíe uno.'
+          description: 'Acá dirigís los ciclos de elaboración: elegís el foco, preparás o aprobás preguntas, decidís cuándo termina el relevamiento y revisás el manual resultante.'
         }
       },
       {
@@ -372,7 +435,7 @@ export default function Revisiones() {
             <ClipboardCheck size={20} />
             Revisiones
           </h1>
-          <p className="text-sm text-muted-foreground">Manuales pendientes de tu aprobación</p>
+          <p className="text-sm text-muted-foreground">Ciclos, preguntas y manuales de tus supervisados</p>
         </div>
         <button
           onClick={verTour}
@@ -382,6 +445,8 @@ export default function Revisiones() {
           <HelpCircle size={14} />
         </button>
       </div>
+
+      <CycleManagement />
 
       {loading ? (
         <p className="text-muted-foreground text-sm">Cargando...</p>

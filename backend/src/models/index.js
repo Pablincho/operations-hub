@@ -10,6 +10,9 @@ import { ChatSessionModel } from './ChatSession.js';
 import { ChatMessageModel } from './ChatMessage.js';
 import { ManualModel } from './Manual.js';
 import { BugReportModel } from './BugReport.js';
+import { ManualCycleModel } from './ManualCycle.js';
+import { ManualQuestionModel } from './ManualQuestion.js';
+import { ManualAgentRunModel } from './ManualAgentRun.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -36,6 +39,9 @@ export const ChatSession = ChatSessionModel(db);
 export const ChatMessage = ChatMessageModel(db);
 export const Manual = ManualModel(db);
 export const BugReport = BugReportModel(db);
+export const ManualCycle = ManualCycleModel(db);
+export const ManualQuestion = ManualQuestionModel(db);
+export const ManualAgentRun = ManualAgentRunModel(db);
 
 // Associations
 Organizacion.hasMany(Usuario, { foreignKey: 'organizacionId' });
@@ -61,6 +67,25 @@ Manual.belongsTo(Usuario, { foreignKey: 'usuarioId' });
 
 Organizacion.hasMany(Manual, { foreignKey: 'organizacionId' });
 Manual.belongsTo(Organizacion, { foreignKey: 'organizacionId' });
+
+Organizacion.hasMany(ManualCycle, { foreignKey: 'organizacionId' });
+ManualCycle.belongsTo(Organizacion, { foreignKey: 'organizacionId' });
+Usuario.hasMany(ManualCycle, { as: 'manualCyclesComoOcupante', foreignKey: 'ocupanteId' });
+ManualCycle.belongsTo(Usuario, { as: 'ocupante', foreignKey: 'ocupanteId' });
+Usuario.hasMany(ManualCycle, { as: 'manualCyclesComoSupervisor', foreignKey: 'supervisorId' });
+ManualCycle.belongsTo(Usuario, { as: 'supervisorCiclo', foreignKey: 'supervisorId' });
+
+ManualCycle.hasMany(ManualQuestion, { as: 'preguntasCiclo', foreignKey: 'cicloId' });
+ManualQuestion.belongsTo(ManualCycle, { foreignKey: 'cicloId' });
+ManualCycle.hasMany(ManualAgentRun, { as: 'ejecucionesAgentes', foreignKey: 'cicloId' });
+ManualAgentRun.belongsTo(ManualCycle, { foreignKey: 'cicloId' });
+
+ManualCycle.hasMany(Manual, { foreignKey: 'cicloId' });
+Manual.belongsTo(ManualCycle, { foreignKey: 'cicloId' });
+ManualCycle.hasMany(CheckinSession, { foreignKey: 'cicloId' });
+CheckinSession.belongsTo(ManualCycle, { foreignKey: 'cicloId' });
+ManualCycle.hasMany(KnowledgeEntry, { foreignKey: 'cicloId' });
+KnowledgeEntry.belongsTo(ManualCycle, { foreignKey: 'cicloId' });
 
 Usuario.belongsTo(Usuario, { as: 'supervisor', foreignKey: 'supervisorId' });
 Usuario.hasMany(Usuario, { as: 'supervisees', foreignKey: 'supervisorId' });

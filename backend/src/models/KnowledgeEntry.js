@@ -12,6 +12,10 @@ export function KnowledgeEntryModel(sequelize) {
       type: DataTypes.UUID,
       allowNull: false
     },
+    cicloId: {
+      type: DataTypes.UUID,
+      allowNull: true
+    },
     funcion: {
       type: DataTypes.STRING,
       allowNull: false

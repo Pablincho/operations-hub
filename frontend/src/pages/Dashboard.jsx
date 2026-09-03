@@ -19,6 +19,8 @@ export default function Dashboard() {
   const [onboardingStatus, setOnboardingStatus] = useState({})
   const [dailyCounts, setDailyCounts] = useState({})
   const [primaryStatusMap, setPrimaryStatusMap] = useState({})
+  const [cycleStatusMap, setCycleStatusMap] = useState({})
+  const [entryTotals, setEntryTotals] = useState({})
   const [loading, setLoading] = useState(true)
 
   const funciones = user?.funciones || []
@@ -38,6 +40,8 @@ export default function Dashboard() {
       setOnboardingStatus(checkinRes.data.onboardingStatus || {})
       setDailyCounts(checkinRes.data.dailyCounts || {})
       setPrimaryStatusMap(checkinRes.data.primaryStatusMap || {})
+      setCycleStatusMap(checkinRes.data.cycleStatusMap || {})
+      setEntryTotals(checkinRes.data.entryTotals || {})
     } catch {
       // ignore
     } finally {
@@ -50,10 +54,13 @@ export default function Dashboard() {
   }
 
   // El check-in se responde únicamente desde acá (Inicio). Una función queda pendiente
-  // si el usuario es ocupante principal, no completó la sesión de hoy y no agotó los 20 días.
+  // si el usuario es ocupante principal, el supervisor mantiene abierto el relevamiento
+  // y todavía no completó la sesión de hoy.
   function checkinPendiente(fn) {
     if (primaryStatusMap[fn] === false) return false
-    if ((dailyCounts[fn] || 0) >= 20) return false
+    const cycle = cycleStatusMap[fn]
+    if (!cycle || cycle.estado === 'completado') return false
+    if (cycle.estado !== 'relevamiento' && !(cycle.esLegacy && cycle.estado === 'configuracion')) return false
     return !sessionForFuncion(fn)?.completado
   }
 
@@ -84,7 +91,7 @@ export default function Dashboard() {
         element: '[data-tour="checkin"]',
         popover: {
           title: 'Tu check-in del día',
-          description: 'Acá respondés las preguntas de tu función. Primero van las 10 iniciales, una sola vez; después son 3 por día durante 20 días. Contestá las que puedas y tocá "Guardar respuestas": no hace falta completarlas todas en el momento. Este es el único lugar donde se responden; si más tarde querés corregir algo, lo editás desde "Mi Manual".',
+          description: 'Acá respondés las preguntas de tu función. Cada ciclo tiene la cantidad y frecuencia configuradas por tu supervisor. Contestá las que puedas y tocá "Guardar respuestas". Si más tarde querés corregir algo, lo editás desde "Mi Manual".',
           side: 'top',
           align: 'start'
         }
@@ -109,7 +116,7 @@ export default function Dashboard() {
         element: '[data-tour="progreso"]',
         popover: {
           title: 'Tu progreso',
-          description: 'Seguí cuánto llevás documentado de cada función. La meta son 60 entradas por puesto.',
+          description: 'Seguí cuántas respuestas lleva el ciclo de cada función. La meta es orientativa cuando el supervisor define una; él decide cuándo finalizar el relevamiento.',
           side: 'top'
         }
       }
@@ -147,6 +154,7 @@ export default function Dashboard() {
               todaySession={sessionForFuncion(fn)}
               onboardingDone={!!onboardingStatus[fn]}
               diasCompletos={dailyCounts[fn] || 0}
+              cycle={cycleStatusMap[fn]}
               onComplete={handleCheckinComplete}
               isPrimary={primaryStatusMap[fn] ?? true}
             />
@@ -191,18 +199,19 @@ export default function Dashboard() {
           <CardContent className="flex flex-col gap-4">
             {funciones.map(fn => {
               const count = progress[fn] || 0
-              const pct = Math.min(100, Math.round((count / 60) * 100))
+              const target = cycleStatusMap[fn]?.objetivoPreguntas
+              const pct = target ? Math.min(100, Math.round((count / target) * 100)) : 0
               return (
                 <div key={fn}>
                   <div className="flex justify-between text-xs mb-1">
                     <span className="font-medium">{FUNC_ICONS[fn]} {fn}</span>
-                    <span className="text-muted-foreground">{count}/60 · {pct}%</span>
+                    <span className="text-muted-foreground">
+                      {cycleStatusMap[fn] ? `Ciclo ${cycleStatusMap[fn].numero} · ` : ''}
+                      {count}{target ? `/${target} · ${pct}%` : ' respuestas'}
+                      {!isAdmin && entryTotals[fn] > count ? ` · ${entryTotals[fn]} en total` : ''}
+                    </span>
                   </div>
-                  <Progress
-                    value={pct}
-                    indicatorClassName="transition-all"
-                    style={{ '--progress-color': FUNC_COLORS[fn] }}
-                  />
+                  {target && <Progress value={pct} indicatorClassName="transition-all" style={{ '--progress-color': FUNC_COLORS[fn] }} />}
                 </div>
               )
             })}

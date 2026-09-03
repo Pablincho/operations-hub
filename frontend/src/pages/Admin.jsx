@@ -15,6 +15,7 @@ export default function Admin() {
   const { user } = useAuth()
   const [users, setUsers] = useState([])
   const [progress, setProgress] = useState({})
+  const [cycleStatusMap, setCycleStatusMap] = useState({})
   const [primaryOccupants, setPrimaryOccupants] = useState({})
   const [bugs, setBugs] = useState([])
   const [showBugs, setShowBugs] = useState(false)
@@ -41,6 +42,7 @@ export default function Admin() {
       setUsers(usersRes.data.data)
       setPrimaryOccupants(usersRes.data.meta?.primaryOccupants || {})
       setProgress(progRes.data.data)
+      setCycleStatusMap(progRes.data.cycleStatusMap || {})
       setBugs(bugsRes.data.data || [])
       setDefaultUserPassword(defaultPwRes.data?.data?.defaultPassword || 'Bienvenido123')
     } catch {
@@ -158,7 +160,6 @@ export default function Admin() {
   }
 
   const totalProgress = FUNCIONES.reduce((acc, fn) => acc + (progress[fn] || 0), 0)
-  const totalGoal = FUNCIONES.length * 60
   // Los botones de acción (vacaciones/activar/password/eliminar) no se muestran para
   // tu propia fila, así que el tour los ancla a la primera fila que sea OTRO usuario.
   const primerOtroUsuarioId = users.find(u => u.id !== user?.id)?.id
@@ -178,7 +179,7 @@ export default function Admin() {
         element: '[data-tour="admin-progreso"]',
         popover: {
           title: 'Progreso por función',
-          description: 'Cuánto lleva documentado cada puesto (meta: 60 entradas). El selector "Principal" define quién es el ocupante principal cuando hay más de una persona con esa función asignada: solo esa persona puede generar y enviar el manual a aprobación, el resto lo ve en modo lectura. Dejalo en "Auto-detectar" si solo hay un ocupante.',
+          description: 'Cuántas respuestas lleva el ciclo actual de cada puesto. La meta solo aparece si el supervisor definió una y siempre es orientativa. El selector "Principal" define quién es el ocupante principal cuando hay más de una persona con esa función asignada.',
           side: 'bottom'
         }
       },
@@ -252,16 +253,17 @@ export default function Admin() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6" data-tour="admin-progreso">
         {FUNCIONES.map(fn => {
           const count = progress[fn] || 0
-          const pct = Math.min(100, Math.round((count / 60) * 100))
+          const target = cycleStatusMap[fn]?.objetivoPreguntas
+          const pct = target ? Math.min(100, Math.round((count / target) * 100)) : 0
           return (
             <Card key={fn}>
               <CardContent className="p-3">
                 <div className="flex justify-between items-center text-xs mb-1.5">
                   <span className="font-medium">{FUNC_ICONS[fn]} {fn}</span>
-                  <span className="text-muted-foreground">{count}/60</span>
+                  <span className="text-muted-foreground">{count}{target ? `/${target}` : ''}</span>
                 </div>
-                <Progress value={pct} />
-                <p className="text-xs text-muted-foreground mt-1">{pct}% completo</p>
+                {target && <Progress value={pct} />}
+                <p className="text-xs text-muted-foreground mt-1">{cycleStatusMap[fn] ? `Ciclo ${cycleStatusMap[fn].numero} · ${target ? `${pct}% de la meta` : 'sin meta fija'}` : 'Sin ciclo iniciado'}</p>
                 {(() => {
                   const asignados = users.filter(u => u.activo && (u.funciones || []).includes(fn))
                   if (asignados.length === 0) return null
@@ -289,8 +291,7 @@ export default function Admin() {
 
       <div className="mb-2 flex items-center gap-2">
         <p className="text-xs text-muted-foreground">Total base de conocimiento:</p>
-        <p className="text-xs font-semibold">{totalProgress}/{totalGoal} entradas</p>
-        <Progress value={Math.min(100, Math.round((totalProgress / totalGoal) * 100))} className="w-24" />
+        <p className="text-xs font-semibold">{totalProgress} respuestas en ciclos actuales</p>
       </div>
 
       {/* Users */}

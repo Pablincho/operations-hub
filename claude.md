@@ -78,9 +78,9 @@ Proyecto piloto: documentar los puestos operativos a través de check-ins adapta
 
 ### Módulo 1: Captura de Conocimiento ✅
 - 10 preguntas iniciales de onboarding por función, etiquetadas por bloque (B2-B6)
-- 3 preguntas diarias adaptativas generadas por IA, enfocadas en el bloque con menos cobertura
-- Límite de 20 días de check-in diario por función
-- Indicador de progreso % visible al ocupante (meta: 60 entradas = 100%)
+- Tandas adaptativas generadas por agentes, con cantidad y frecuencia configurables por ciclo
+- Ciclos ilimitados: el supervisor asignado decide cuándo termina cada relevamiento y cuándo inicia el siguiente
+- Meta de respuestas opcional y orientativa; nunca cierra el ciclo automáticamente
 - Preguntas organizadas por bloques del manual:
   - B2: Funciones y responsabilidades
   - B3: Perfil del puesto
@@ -108,6 +108,15 @@ Proyecto piloto: documentar los puestos operativos a través de check-ins adapta
 - Emails transaccionales: envío, aprobación, devolución
 - Bloqueo de edición mientras el manual está 'en_revision'
 - Observaciones del revisor visibles al ocupante en el check-in
+
+### Módulo 5: Ciclos y elaboración agéntica ✅
+- El supervisor configura temas, orientación libre, frecuencia, preguntas por tanda, meta opcional y aprobación previa
+- A0 audita cobertura; A1 investiga el puesto en la web sin recibir datos internos; A2 convierte hallazgos en preguntas
+- La investigación web es solo orientativa y nunca se incorpora directamente al manual
+- A3 redacta usando exclusivamente respuestas no sensibles y el manual aprobado anterior
+- A4 verifica respaldo y coherencia; permite hasta dos correcciones automáticas
+- Si A4 detecta conocimiento faltante, reabre el relevamiento y crea preguntas de seguimiento
+- Al aprobar, el supervisor siempre define el foco del ciclo siguiente y decide si lo inicia en ese momento
 
 ---
 
@@ -173,6 +182,17 @@ Proyecto piloto: documentar los puestos operativos a través de check-ins adapta
 - `POST /api/manual/:id/aprobar` (admin+)
 - `POST /api/manual/:id/devolver` (admin+)
 
+### Ciclos del manual
+- `GET /api/manual-cycles/puestos`
+- `GET /api/manual-cycles?funcion=...`
+- `POST /api/manual-cycles`
+- `PATCH /api/manual-cycles/:id`
+- `POST /api/manual-cycles/:id/planificar`
+- `GET /api/manual-cycles/:id/preguntas`
+- `POST /api/manual-cycles/:id/aprobar-preguntas`
+- `POST /api/manual-cycles/:id/cerrar-relevamiento`
+- `POST /api/manual-cycles/:id/pausar` / `reanudar`
+
 ### Chat
 - `GET /api/chat/session`
 - `POST /api/chat/session`
@@ -196,6 +216,7 @@ Proyecto piloto: documentar los puestos operativos a través de check-ins adapta
 20260608000011-update-manuales-estado-enum.cjs     ← agrega en_revision y obsoleto
 20260608000012-add-supervisorid-to-usuarios.cjs
 20260608000013-add-approval-fields-to-manuales.cjs
+20260906000026-create-manual-cycles.cjs            ← ciclos, trazabilidad de agentes y cola de preguntas
 ```
 
 Para correr: `cd backend && npm run migrate`
@@ -208,6 +229,8 @@ Para correr: `cd backend && npm run migrate`
 - `DATABASE_URL`
 - `JWT_SECRET`
 - `OPENAI_API_KEY`
+- `MANUAL_AGENT_MODEL` (opcional, default `gpt-4o`)
+- `MANUAL_RESEARCH_MODEL` (opcional, default `gpt-4.1-mini`, debe admitir búsqueda web en Responses API)
 - `RESEND_API_KEY`: SDK de Resend para emails
 - `PORT` (default 3001)
 - `NODE_ENV`

@@ -123,6 +123,22 @@ export async function sendRecordatorioSupervisorEmail(toEmail, supervisorNombre,
   });
 }
 
+export async function sendCicloPendienteEmail(toEmail, supervisorNombre, funcion, dias) {
+  await resend.emails.send({
+    from: FROM,
+    to: toEmail,
+    subject: `${funcion} no tiene un ciclo de relevamiento abierto`,
+    html: baseHtml(`
+      <p style="color:#222;font-size:15px;font-weight:600;margin-bottom:8px">Hola ${supervisorNombre}</p>
+      <p style="color:#555">Hace <strong>${dias} días</strong> que <strong>${funcion}</strong> no tiene un ciclo de relevamiento abierto, así que su ocupante no recibe preguntas nuevas.</p>
+      <p style="color:#555;font-size:13px">Cuando quieras retomar, abrí el próximo ciclo e indicá en qué temas hacer foco.</p>
+      <div style="text-align:center;margin:28px 0">
+        <a href="${process.env.FRONTEND_URL}/revisiones" style="background:#1a3a1a;color:#e8d5a3;text-decoration:none;padding:12px 28px;border-radius:8px;font-size:14px;font-weight:600">Abrir el próximo ciclo →</a>
+      </div>
+    `)
+  });
+}
+
 export async function sendManualDevueltoEmail(toEmail, funcion, observaciones) {
   await resend.emails.send({
     from: FROM,

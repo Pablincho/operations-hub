@@ -4,10 +4,9 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Loader2, RefreshCw, BookOpen, CalendarCheck } from 'lucide-react'
 
-// Bloque de check-in del día. La fase (inicial vs diaria) se deriva del estado real:
-// si el onboarding no está completo se muestran las 10 preguntas iniciales; recién
-// cuando el onboarding está hecho aparecen las 3 preguntas diarias.
-export default function CheckinBlock({ funcion, color, todaySession, onboardingDone, diasCompletos, onComplete, isPrimary }) {
+// El ciclo 1 conserva las preguntas iniciales históricas. Después, cada tanda responde
+// a la configuración y al plan aprobado por el supervisor.
+export default function CheckinBlock({ funcion, color, todaySession, onboardingDone, diasCompletos, onComplete, isPrimary, cycle }) {
   const [session, setSession] = useState(todaySession)
   const [answers, setAnswers] = useState([])
   const [loading, setLoading] = useState(false)
@@ -24,9 +23,9 @@ export default function CheckinBlock({ funcion, color, todaySession, onboardingD
   if (session?.completado) return null
   if (isPrimary === false) return null
 
-  const isOnboarding = session ? session.preguntas.length === 10 : !onboardingDone
+  const isOnboarding = !!cycle?.esLegacy && (session ? session.preguntas.length === 10 : !onboardingDone)
   const PhaseIcon = isOnboarding ? BookOpen : CalendarCheck
-  const phaseLabel = isOnboarding ? 'Preguntas iniciales' : `Día ${diasCompletos + 1} de 20`
+  const phaseLabel = isOnboarding ? 'Preguntas iniciales' : `Ciclo ${cycle?.numero || 1} · tanda ${diasCompletos + 1}`
 
   async function startCheckin() {
     setLoading(true)
@@ -69,24 +68,20 @@ export default function CheckinBlock({ funcion, color, todaySession, onboardingD
         {!session && (
           <div className="flex items-center justify-between gap-3">
             <p className="text-sm text-amber-900">
-              {!onboardingDone
+              {isOnboarding
                 ? 'Respondé las 10 preguntas iniciales para documentar tu función.'
-                : diasCompletos >= 20
-                  ? '¡Completaste los 20 días de documentación!'
-                  : 'Respondé las 3 preguntas de hoy para seguir documentando tu función.'}
+                : `Respondé la próxima tanda de ${cycle?.preguntasPorEntrega || 3} preguntas para seguir documentando tu función.`}
             </p>
-            {diasCompletos < 20 && (
-              <Button
-                onClick={startCheckin}
-                disabled={loading}
-                size="sm"
-                className="gap-1.5 shrink-0"
-                style={{ background: color, color: 'white' }}
-              >
-                {loading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-                Iniciar
-              </Button>
-            )}
+            <Button
+              onClick={startCheckin}
+              disabled={loading}
+              size="sm"
+              className="gap-1.5 shrink-0"
+              style={{ background: color, color: 'white' }}
+            >
+              {loading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+              Iniciar
+            </Button>
           </div>
         )}
 

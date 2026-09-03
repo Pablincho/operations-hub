@@ -236,7 +236,7 @@ function WordDiff({ oldText, newText }) {
 }
 
 // ─── Manual section ───────────────────────────────────────────────────────────
-function ManualSection({ funcion, color, onManualEstado, isPrimary, autoRegenTrigger }) {
+function ManualSection({ funcion, color, onManualEstado, isPrimary, autoRegenTrigger, cycle, onCycleChange }) {
   const { user } = useAuth()
   const autoaprobarManual = !!user?.autoaprobarManual
   const [manual, setManual] = useState(null)
@@ -257,7 +257,7 @@ function ManualSection({ funcion, color, onManualEstado, isPrimary, autoRegenTri
     onManualEstado?.(manual ? { estado: manual.estado, generadoEn: manual.generadoEn } : null)
   }, [manual]) // eslint-disable-line react-hooks/exhaustive-deps -- callback informativo del padre
   useEffect(() => {
-    if (!autoRegenTrigger) return
+    if (!autoRegenTrigger || !['listo_para_generar', 'borrador'].includes(cycle?.estado)) return
     generarOActualizar()
   }, [autoRegenTrigger]) // eslint-disable-line react-hooks/exhaustive-deps -- evento explícito del padre
 
@@ -281,6 +281,7 @@ function ManualSection({ funcion, color, onManualEstado, isPrimary, autoRegenTri
       await api.post(`/manual/${encodeURIComponent(funcion)}/generar`)
       // Recargar para traer la base del diff (contenidoAnterior) actualizada
       await loadManual()
+      await onCycleChange?.()
     } catch (err) {
       alert(err.response?.data?.error || 'Error al generar el manual')
     } finally { setGenerating(false) }
@@ -293,6 +294,7 @@ function ManualSection({ funcion, color, onManualEstado, isPrimary, autoRegenTri
       setManual(res.data.data)
       setShowEnviarDialog(false)
       setNotaEnvio('')
+      await onCycleChange?.()
     } catch (err) {
       alert(err.response?.data?.error || 'Error al enviar')
     } finally { setSending(false) }
@@ -321,6 +323,7 @@ function ManualSection({ funcion, color, onManualEstado, isPrimary, autoRegenTri
     : []
   const estadoInfo = manual ? (ESTADO_LABELS[manual.estado] || ESTADO_LABELS.borrador) : null
   const versionesAnteriores = historial.filter(h => h.estado === 'obsoleto')
+  const canGenerate = ['listo_para_generar', 'borrador'].includes(cycle?.estado)
 
   // Un bloque está "editado" si su contenido difiere de la última versión aprobada
   // (no se marca en manuales ya vigentes, donde no hay cambios pendientes que mostrar)
@@ -347,7 +350,7 @@ function ManualSection({ funcion, color, onManualEstado, isPrimary, autoRegenTri
           {isPrimary === false && (
             <span className="text-xs text-muted-foreground px-2 py-1 bg-muted rounded-lg">Solo lectura</span>
           )}
-          {isPrimary !== false && manual?.estado !== 'en_revision' && (
+          {isPrimary !== false && manual?.estado !== 'en_revision' && canGenerate && (
             <Button data-tour="manual-generar" size="sm" onClick={generarOActualizar} disabled={generating} className="gap-1 text-xs h-7" style={{ background: color, color: 'white' }}>
               {generating ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
               {manual ? 'Actualizar' : 'Generar manual'}
@@ -387,7 +390,9 @@ function ManualSection({ funcion, color, onManualEstado, isPrimary, autoRegenTri
 
       {!loading && !manual && (
         <p className="text-sm text-muted-foreground">
-          Aún no se generó el manual. Completá el check-in y luego hacé click en "Generar manual".
+          {cycle?.estado === 'listo_para_generar'
+            ? 'El relevamiento terminó. Ya podés generar y verificar el manual.'
+            : 'El manual se podrá generar cuando el supervisor finalice el relevamiento.'}
         </p>
       )}
 
@@ -727,13 +732,13 @@ export default function MiManual() {
   const [initializing, setInitializing] = useState(true)
   const [todaySessions, setTodaySessions] = useState([])
   const [onboardingStatus, setOnboardingStatus] = useState({})
-  const [dailyCounts, setDailyCounts] = useState({})
   const [entryCounts, setEntryCounts] = useState({})
   const refreshEntries = 0
   const [manualMeta, setManualMeta] = useState({})
   const [clearEditedTrigger, setClearEditedTrigger] = useState(0)
   const [autoRegenTrigger, setAutoRegenTrigger] = useState(0)
   const [primaryStatusMap, setPrimaryStatusMap] = useState({})
+  const [cycleStatusMap, setCycleStatusMap] = useState({})
 
   useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps -- carga inicial
 
@@ -745,9 +750,9 @@ export default function MiManual() {
       const res = await api.get('/checkin/hoy')
       setTodaySessions(res.data.data || [])
       setOnboardingStatus(res.data.onboardingStatus || {})
-      setDailyCounts(res.data.dailyCounts || {})
       setEntryCounts(res.data.entryCounts || {})
       setPrimaryStatusMap(res.data.primaryStatusMap || {})
+      setCycleStatusMap(res.data.cycleStatusMap || {})
     } catch { /* ignore */ }
     finally { setInitializing(false) }
   }
@@ -761,7 +766,9 @@ export default function MiManual() {
   function checkinPendiente(fn) {
     if (user?.enVacaciones) return false
     if (primaryStatusMap[fn] === false) return false
-    if ((dailyCounts[fn] || 0) >= 20) return false
+    const cycle = cycleStatusMap[fn]
+    if (!cycle || cycle.estado === 'completado') return false
+    if (cycle.estado !== 'relevamiento' && !(cycle.esLegacy && cycle.estado === 'configuracion')) return false
     return !sessionForFuncion(fn)?.completado
   }
 
@@ -843,7 +850,9 @@ export default function MiManual() {
   }
 
   const color = FUNC_COLORS[selectedFn] || '#1a3a1a'
-  const pct = Math.min(100, Math.round(((entryCounts[selectedFn] || 0) / 60) * 100))
+  const selectedCycle = cycleStatusMap[selectedFn]
+  const target = selectedCycle?.objetivoPreguntas
+  const pct = target ? Math.min(100, Math.round(((entryCounts[selectedFn] || 0) / target) * 100)) : 0
 
   return (
     <div className="max-w-3xl mx-auto p-6">
@@ -888,10 +897,10 @@ export default function MiManual() {
 
       {/* Progress bar */}
       <div className="flex items-center gap-3 mb-5">
-        <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
-          <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: color }} />
-        </div>
-        <span className="text-xs text-muted-foreground shrink-0">{entryCounts[selectedFn] || 0}/60 · {pct}% documentado</span>
+        {target && <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden"><div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: color }} /></div>}
+        <span className="text-xs text-muted-foreground shrink-0">
+          {selectedCycle ? `Ciclo ${selectedCycle.numero} · ` : ''}{entryCounts[selectedFn] || 0}{target ? `/${target} · ${pct}%` : ' respuestas'}
+        </span>
       </div>
 
       <Card>
@@ -926,10 +935,12 @@ export default function MiManual() {
             }}
             isPrimary={primaryStatusMap[selectedFn] ?? true}
             autoRegenTrigger={autoRegenTrigger}
+            cycle={selectedCycle}
+            onCycleChange={load}
           />
 
           {/* 3: Previous answers */}
-          {(onboardingStatus[selectedFn] || primaryStatusMap[selectedFn] === false) && (
+          {((entryCounts[selectedFn] || 0) > 0 || onboardingStatus[selectedFn] || primaryStatusMap[selectedFn] === false) && (
             <EntradasSection
               funcion={selectedFn}
               color={color}
