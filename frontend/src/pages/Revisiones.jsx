@@ -377,6 +377,7 @@ function ManualCard({ manual: initialManual, onResolved, isFirst }) {
 export default function Revisiones() {
   const [manuales, setManuales] = useState([])
   const [loading, setLoading] = useState(true)
+  const [cyclesLoading, setCyclesLoading] = useState(true)
   const { refresh: refreshNotifications } = useNotifications()
   const { user } = useAuth()
 
@@ -446,9 +447,9 @@ export default function Revisiones() {
         </button>
       </div>
 
-      <CycleManagement />
+      <CycleManagement onLoadingChange={setCyclesLoading} hidden={loading || cyclesLoading} />
 
-      {loading ? (
+      {loading || cyclesLoading ? (
         <p className="text-muted-foreground text-sm">Cargando...</p>
       ) : manuales.length === 0 ? (
         <Card>

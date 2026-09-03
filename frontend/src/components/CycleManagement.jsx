@@ -144,10 +144,11 @@ function CycleCard({ position, topics, onRefresh }) {
   )
 }
 
-export default function CycleManagement() {
+export default function CycleManagement({ onLoadingChange, hidden = false }) {
   const [positions, setPositions] = useState([])
   const [topics, setTopics] = useState([])
   const [loading, setLoading] = useState(true)
+  useEffect(() => { onLoadingChange?.(loading) }, [loading, onLoadingChange])
   async function load() {
     setLoading(true)
     try {
@@ -160,7 +161,7 @@ export default function CycleManagement() {
     window.addEventListener('manual-cycle-changed', load)
     return () => window.removeEventListener('manual-cycle-changed', load)
   }, [])
-  if (loading) return <p className="text-sm text-muted-foreground">Cargando ciclos...</p>
+  if (loading || hidden) return null
   if (!positions.length) return null
   return <section className="mb-8"><div className="mb-3"><h2 className="text-base font-bold" style={{ color: '#1a3a1a' }}>Ciclos de elaboración</h2><p className="text-xs text-muted-foreground">Definí el foco, revisá las preguntas y decidí cuándo hay información suficiente para generar cada manual.</p></div><div className="space-y-3">{positions.map(position => <CycleCard key={`${position.ocupante.id}-${position.funcion}-${position.ciclo?.updatedAt || 'nuevo'}`} position={position} topics={topics} onRefresh={load} />)}</div></section>
 }
