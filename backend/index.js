@@ -11,6 +11,7 @@ import checkinRoutes from './src/routes/checkin.js';
 import chatRoutes from './src/routes/chat.js';
 import manualRoutes from './src/routes/manual.js';
 import manualCycleRoutes from './src/routes/manualCycles.js';
+import organizacionRoutes from './src/routes/organizacion.js';
 import bugsRoutes from './src/routes/bugs.js';
 import { initScheduler } from './src/scheduler.js';
 
@@ -68,6 +69,7 @@ app.use('/api/checkin', checkinRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/manual', manualRoutes);
 app.use('/api/manual-cycles', manualCycleRoutes);
+app.use('/api/organizacion', organizacionRoutes);
 app.use('/api/bugs', bugsRoutes);
 
 app.get('/api/health', (_req, res) => res.json({ success: true, data: 'OK' }));

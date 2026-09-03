@@ -102,6 +102,7 @@ Proyecto piloto: documentar los puestos operativos a través de check-ins adapta
 
 ### Módulo 4: Aprobación ✅
 - Asignación de N+1 (supervisor) por usuario desde el panel Admin
+- Catálogo de puestos por organización en `Organizacion.config.funcionesCatalogo`; admite alta, renombrado, desactivación y reactivación sin borrar historial
 - Ocupante envía el manual con nota opcional → estado cambia a 'en_revision', versión asignada '1.0'
 - Página "Revisiones" para admins/superadmins: lista de manuales pendientes con bloques expandibles
 - Supervisor puede Aprobar (→ vigente) o Devolver con observaciones (→ borrador)
@@ -159,6 +160,9 @@ Proyecto piloto: documentar los puestos operativos a través de check-ins adapta
 - `PATCH /api/usuarios/:id/activo`
 - `PATCH /api/usuarios/:id/password`
 - `PATCH /api/usuarios/:id/supervisor`
+- `GET /api/organizacion/funciones`
+- `POST /api/organizacion/funciones`
+- `PATCH /api/organizacion/funciones/:nombre`
 - `DELETE /api/usuarios/:id`
 
 ### Check-in

@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import { verifyJWT, requireAdmin } from '../auth.js';
 import { Usuario, Organizacion } from '../models/index.js';
 import { sendBienvenidaEmail } from '../services/emailService.js';
+import { getFunctionCatalog } from '../services/functionCatalogService.js';
 
 const router = Router();
 router.use(verifyJWT);
@@ -21,6 +22,20 @@ function validatePassword(password = '') {
   if (!/[a-z]/.test(password)) return 'La contraseña debe incluir al menos 1 minúscula';
   if (!/[0-9]/.test(password)) return 'La contraseña debe incluir al menos 1 número';
   return null;
+}
+
+async function validatedFunctions(organizacionId, values) {
+  if (!Array.isArray(values)) return [];
+  const catalog = await getFunctionCatalog(organizacionId);
+  const allowed = new Set(catalog.map(entry => entry.nombre));
+  const normalized = [...new Set(values.map(value => String(value).trim()).filter(Boolean))];
+  const invalid = normalized.filter(value => !allowed.has(value));
+  if (invalid.length) {
+    const error = new Error(`Puestos inexistentes o inactivos: ${invalid.join(', ')}`);
+    error.status = 400;
+    throw error;
+  }
+  return normalized;
 }
 
 function getDefaultUserPassword() {
@@ -56,21 +71,22 @@ function getDefaultUserPassword() {
 // GET all users of the org + primaryOccupants config
 router.get('/', requireAdmin, async (req, res) => {
   try {
-    const [usuarios, org] = await Promise.all([
+    const [usuarios, org, funcionesCatalogo] = await Promise.all([
       Usuario.findAll({
         where: { organizacionId: req.user.organizacionId },
         attributes: { exclude: ['passwordHash', 'resetTokenHash', 'resetTokenExpiresAt'] },
         order: [['createdAt', 'ASC']]
       }),
-      Organizacion.findByPk(req.user.organizacionId, { attributes: ['config'] })
+      Organizacion.findByPk(req.user.organizacionId, { attributes: ['config'] }),
+      getFunctionCatalog(req.user.organizacionId, { includeInactive: true })
     ]);
     res.json({
       success: true,
       data: usuarios,
-      meta: { primaryOccupants: org?.config?.primaryOccupants || {} }
+      meta: { primaryOccupants: org?.config?.primaryOccupants || {}, funcionesCatalogo }
     });
-  } catch {
-    res.status(500).json({ success: false, error: 'Error interno' });
+  } catch (error) {
+    res.status(error.status || 500).json({ success: false, error: error.status ? error.message : 'Error interno' });
   }
 });
 
@@ -81,8 +97,8 @@ router.get('/default-password', requireAdmin, async (_req, res) => {
       success: true,
       data: { defaultPassword: getDefaultUserPassword() }
     });
-  } catch {
-    res.status(500).json({ success: false, error: 'Error interno' });
+  } catch (error) {
+    res.status(error.status || 500).json({ success: false, error: error.status ? error.message : 'Error interno' });
   }
 });
 
@@ -123,13 +139,14 @@ router.post('/', requireAdmin, async (req, res) => {
     }
 
     const passwordHash = await bcrypt.hash(tempPassword, 12);
+    const funcionesValidadas = await validatedFunctions(req.user.organizacionId, funciones || []);
     const usuario = await Usuario.create({
       email: normalizedEmail,
       passwordHash,
       mustChangePassword: true,
       nombre,
       rol: targetRol,
-      funciones: funciones || [],
+      funciones: funcionesValidadas,
       organizacionId: req.user.organizacionId
     });
 
@@ -150,8 +167,8 @@ router.post('/', requireAdmin, async (req, res) => {
         mustChangePassword: true
       }
     });
-  } catch {
-    res.status(500).json({ success: false, error: 'Error interno' });
+  } catch (error) {
+    res.status(error.status || 500).json({ success: false, error: error.status ? error.message : 'Error interno' });
   }
 });
 
@@ -168,12 +185,13 @@ router.patch('/:id/funciones', requireAdmin, async (req, res) => {
     });
     if (!usuario) return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
 
-    await usuario.update({ funciones });
+    const funcionesValidadas = await validatedFunctions(req.user.organizacionId, funciones);
+    await usuario.update({ funciones: funcionesValidadas });
     const data = usuario.toJSON();
     delete data.passwordHash;
     res.json({ success: true, data });
-  } catch {
-    res.status(500).json({ success: false, error: 'Error interno' });
+  } catch (error) {
+    res.status(error.status || 500).json({ success: false, error: error.status ? error.message : 'Error interno' });
   }
 });
 

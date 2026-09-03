@@ -7,7 +7,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { FUNCIONES, FUNC_ICONS, FUNC_COLORS } from '@/lib/utils'
+import { FUNC_ICONS, FUNC_COLORS } from '@/lib/utils'
 import { useTour } from '@/lib/tour'
 import { Plus, UserCheck, UserX, Key, Trash2, Bug, ChevronDown, ChevronUp, CheckCheck, Trash, ZoomIn, ZoomOut, X, Palmtree, HelpCircle } from 'lucide-react'
 
@@ -17,6 +17,7 @@ export default function Admin() {
   const [progress, setProgress] = useState({})
   const [cycleStatusMap, setCycleStatusMap] = useState({})
   const [primaryOccupants, setPrimaryOccupants] = useState({})
+  const [functionCatalog, setFunctionCatalog] = useState([])
   const [bugs, setBugs] = useState([])
   const [showBugs, setShowBugs] = useState(false)
   const [lightboxImg, setLightboxImg] = useState(null)
@@ -24,6 +25,8 @@ export default function Admin() {
   const [defaultUserPassword, setDefaultUserPassword] = useState('Bienvenido123')
   const [loading, setLoading] = useState(true)
   const [showNew, setShowNew] = useState(false)
+  const [showCatalog, setShowCatalog] = useState(false)
+  const [newFunctionName, setNewFunctionName] = useState('')
   const [newForm, setNewForm] = useState({ nombre: '', email: '', rol: 'operativo', funciones: [] })
   const [pwForm, setPwForm] = useState({ userId: null, password: '' })
 
@@ -41,6 +44,7 @@ export default function Admin() {
       ])
       setUsers(usersRes.data.data)
       setPrimaryOccupants(usersRes.data.meta?.primaryOccupants || {})
+      setFunctionCatalog(usersRes.data.meta?.funcionesCatalogo || [])
       setProgress(progRes.data.data)
       setCycleStatusMap(progRes.data.cycleStatusMap || {})
       setBugs(bugsRes.data.data || [])
@@ -84,6 +88,37 @@ export default function Admin() {
       setPrimaryOccupants(prev => ({ ...prev, [funcion]: usuarioId || null }))
     } catch (err) {
       alert(err.response?.data?.error || 'Error')
+    }
+  }
+
+  async function createFunction() {
+    if (!newFunctionName.trim()) return
+    try {
+      await api.post('/organizacion/funciones', { nombre: newFunctionName })
+      setNewFunctionName('')
+      await load()
+    } catch (err) {
+      alert(err.response?.data?.error || 'No se pudo crear el puesto')
+    }
+  }
+
+  async function renameFunction(entry) {
+    const nombre = window.prompt('Nuevo nombre del puesto', entry.nombre)?.trim()
+    if (!nombre || nombre === entry.nombre) return
+    try {
+      await api.patch(`/organizacion/funciones/${encodeURIComponent(entry.nombre)}`, { nombre })
+      await load()
+    } catch (err) {
+      alert(err.response?.data?.error || 'No se pudo renombrar el puesto')
+    }
+  }
+
+  async function toggleCatalogFunction(entry) {
+    try {
+      await api.patch(`/organizacion/funciones/${encodeURIComponent(entry.nombre)}`, { activo: !entry.activo })
+      await load()
+    } catch (err) {
+      alert(err.response?.data?.error || 'No se pudo actualizar el puesto')
     }
   }
 
@@ -159,7 +194,8 @@ export default function Admin() {
     }))
   }
 
-  const totalProgress = FUNCIONES.reduce((acc, fn) => acc + (progress[fn] || 0), 0)
+  const funciones = functionCatalog.filter(entry => entry.activo).map(entry => entry.nombre)
+  const totalProgress = funciones.reduce((acc, fn) => acc + (progress[fn] || 0), 0)
   // Los botones de acción (vacaciones/activar/password/eliminar) no se muestran para
   // tu propia fila, así que el tour los ancla a la primera fila que sea OTRO usuario.
   const primerOtroUsuarioId = users.find(u => u.id !== user?.id)?.id
@@ -246,12 +282,15 @@ export default function Admin() {
             <Plus size={14} />
             Nuevo usuario
           </Button>
+          <Button variant="outline" onClick={() => setShowCatalog(true)} className="gap-2 text-xs">
+            Gestionar puestos
+          </Button>
         </div>
       </div>
 
       {/* Progress overview */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6" data-tour="admin-progreso">
-        {FUNCIONES.map(fn => {
+        {funciones.map(fn => {
           const count = progress[fn] || 0
           const target = cycleStatusMap[fn]?.objetivoPreguntas
           const pct = target ? Math.min(100, Math.round((count / target) * 100)) : 0
@@ -336,7 +375,7 @@ export default function Admin() {
 
                     {/* Function toggles */}
                     <div className="flex flex-wrap gap-1.5 mt-2" data-tour={u.id === primerOtroUsuarioId ? 'admin-funciones' : undefined}>
-                      {FUNCIONES.map(fn => {
+                      {funciones.map(fn => {
                         const has = (u.funciones || []).includes(fn)
                         const canEdit = true
                         return (
@@ -531,7 +570,7 @@ export default function Admin() {
             <div>
               <label className="text-xs font-medium mb-1 block">Funciones</label>
               <div className="flex flex-wrap gap-2">
-                {FUNCIONES.map(fn => (
+                {funciones.map(fn => (
                   <button
                     key={fn}
                     type="button"
@@ -551,6 +590,25 @@ export default function Admin() {
             <Button variant="outline" onClick={() => setShowNew(false)}>Cancelar</Button>
             <Button onClick={createUser} style={{ background: '#1a3a1a', color: '#e8d5a3' }}>Crear</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showCatalog} onOpenChange={setShowCatalog}>
+        <DialogContent aria-describedby={undefined}>
+          <DialogHeader><DialogTitle>Catálogo de puestos</DialogTitle></DialogHeader>
+          <div className="flex gap-2">
+            <Input value={newFunctionName} onChange={event => setNewFunctionName(event.target.value)} placeholder="Nombre del nuevo puesto" onKeyDown={event => event.key === 'Enter' && createFunction()} />
+            <Button onClick={createFunction} disabled={!newFunctionName.trim()}>Agregar</Button>
+          </div>
+          <div className="max-h-80 overflow-auto space-y-2">
+            {functionCatalog.map(entry => <div key={entry.nombre} className={`flex items-center gap-2 rounded-lg border p-2 ${entry.activo ? '' : 'opacity-50'}`}>
+              <span className="flex-1 text-sm">{FUNC_ICONS[entry.nombre]} {entry.nombre}</span>
+              <Button variant="ghost" size="sm" onClick={() => renameFunction(entry)}>Renombrar</Button>
+              <Button variant="outline" size="sm" onClick={() => toggleCatalogFunction(entry)}>{entry.activo ? 'Desactivar' : 'Reactivar'}</Button>
+            </div>)}
+          </div>
+          <p className="text-xs text-muted-foreground">Desactivar oculta el puesto para nuevas asignaciones, pero conserva usuarios, ciclos, manuales e historial.</p>
+          <DialogFooter><Button variant="outline" onClick={() => setShowCatalog(false)}>Cerrar</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 

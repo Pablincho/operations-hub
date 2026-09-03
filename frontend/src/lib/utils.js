@@ -16,7 +16,7 @@ export const FUNCIONES = [
   'Administrativo El Coro'
 ]
 
-export const FUNC_ICONS = {
+const KNOWN_FUNC_ICONS = {
   'Gerente General': '🏢',
   'Tesorería': '🏦',
   'Administración y Finanzas': '📊',
@@ -27,7 +27,11 @@ export const FUNC_ICONS = {
   'Administrativo El Coro': '🏡'
 }
 
-export const FUNC_COLORS = {
+export const FUNC_ICONS = new Proxy(KNOWN_FUNC_ICONS, {
+  get: (target, property) => target[property] || '🧩'
+})
+
+const KNOWN_FUNC_COLORS = {
   'Gerente General': '#7a1a1a',
   'Tesorería': '#1a3a1a',
   'Administración y Finanzas': '#5a2d82',
@@ -37,6 +41,10 @@ export const FUNC_COLORS = {
   'RRHH': '#6b2c4a',
   'Administrativo El Coro': '#3d5a1a'
 }
+
+export const FUNC_COLORS = new Proxy(KNOWN_FUNC_COLORS, {
+  get: (target, property) => target[property] || '#315b4c'
+})
 
 export const FUNC_BG_LIGHT = {
   'Gerente General': '#fdf0f0',
