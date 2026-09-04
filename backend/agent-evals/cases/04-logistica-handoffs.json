@@ -1,0 +1,28 @@
+{
+  "id": "logistica-coordinacion-deposito-trafico",
+  "descripcion": "Operación logística con handoffs entre depósito, tráfico y facturación.",
+  "cycle": {
+    "id": "eval-logistica-04",
+    "organizacionId": "eval-logistica",
+    "funcion": "Coordinación de Depósito",
+    "estado": "relevamiento",
+    "temas": ["Relaciones con otras áreas"],
+    "orientacion": "Confirmar entregas de mercadería, prioridades y tratamiento de desvíos con las áreas reales.",
+    "preguntasPorEntrega": 3,
+    "objetivoPreguntas": 6,
+    "requiereAprobacionPreguntas": true
+  },
+  "usuarios": ["Coordinación de Depósito", "Tráfico", "Facturación"],
+  "evidencia": [
+    {"id":"l1","funcion":"Coordinación de Depósito","cicloId":"eval-logistica-04","bloque":"B4","titulo":"¿Cómo se prepara un pedido?","contenido":"Se controla el picking contra la orden, se embala, se registra el despacho y se entrega la documentación al transportista."},
+    {"id":"l2","funcion":"Tráfico","cicloId":"otro","bloque":"B5","titulo":"¿Cómo recibe los pedidos listos?","contenido":"Tráfico recibe de Coordinación de Depósito la confirmación de los pedidos preparados y los remitos para asignar el transporte."},
+    {"id":"l3","funcion":"Facturación","cicloId":"otro","bloque":"B5","titulo":"¿Qué documentación necesita?","contenido":"Facturación recibe de Coordinación de Depósito los remitos conformados para emitir la factura correspondiente."}
+  ],
+  "criterios": {
+    "bloquesRequeridos": ["B5"],
+    "areasPermitidas": ["Tráfico", "Facturación"],
+    "debeMencionar": ["Tráfico"],
+    "terminosProhibidos": ["Desarrollo", "Marketing", "Gestión de Producto"]
+  },
+  "afirmacionSinEvidencia": {"bloque":"B5","texto":"Facturación aprueba automáticamente cualquier cambio de precio."}
+}

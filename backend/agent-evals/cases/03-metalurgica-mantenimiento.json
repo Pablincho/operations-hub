@@ -1,0 +1,28 @@
+{
+  "id": "metalurgica-mantenimiento-excepciones",
+  "descripcion": "Planta industrial con mantenimiento preventivo, falla crítica y coordinación con producción.",
+  "cycle": {
+    "id": "eval-metal-03",
+    "organizacionId": "eval-metal",
+    "funcion": "Jefatura de Mantenimiento",
+    "estado": "relevamiento",
+    "temas": ["Excepciones e imprevistos"],
+    "orientacion": "Priorizar fallas críticas, seguridad y decisiones durante paradas no planificadas.",
+    "preguntasPorEntrega": 3,
+    "objetivoPreguntas": 6,
+    "requiereAprobacionPreguntas": true
+  },
+  "usuarios": ["Jefatura de Mantenimiento", "Producción", "Depósito de Repuestos"],
+  "evidencia": [
+    {"id":"m1","funcion":"Jefatura de Mantenimiento","cicloId":"eval-metal-03","bloque":"B4","titulo":"¿Cómo se realiza el mantenimiento preventivo?","contenido":"Cada viernes se revisa el plan semanal, se asignan técnicos y se registran las intervenciones realizadas por equipo."},
+    {"id":"m2","funcion":"Jefatura de Mantenimiento","cicloId":"eval-metal-03","bloque":"B4","titulo":"¿Qué ocurre ante una falla crítica?","contenido":"Se detiene el equipo afectado, se señaliza el área y el jefe evalúa con seguridad si se puede intervenir o si debe convocarse un servicio externo."},
+    {"id":"m3","funcion":"Producción","cicloId":"otro","bloque":"B5","titulo":"¿Cómo informa una parada?","contenido":"Producción informa a Jefatura de Mantenimiento las paradas no previstas y acuerda la prioridad de reparación según el plan de producción."}
+  ],
+  "criterios": {
+    "bloquesRequeridos": ["B4"],
+    "areasPermitidas": ["Producción", "Depósito de Repuestos"],
+    "debeMencionar": ["falla"],
+    "terminosProhibidos": ["contraseña", "token"]
+  },
+  "afirmacionSinEvidencia": {"bloque":"B4","texto":"Todas las reparaciones se completan en menos de una hora."}
+}

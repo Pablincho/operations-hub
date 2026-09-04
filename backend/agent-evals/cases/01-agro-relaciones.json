@@ -1,0 +1,28 @@
+{
+  "id": "agro-relaciones-campo-administracion",
+  "descripcion": "Empresa agropecuaria con relación declarada entre campo y administración.",
+  "cycle": {
+    "id": "eval-agro-01",
+    "organizacionId": "eval-agro",
+    "funcion": "Operaciones de Campo",
+    "estado": "relevamiento",
+    "temas": ["Relaciones con otras áreas"],
+    "orientacion": "Profundizar en rendición de gastos, pedidos de insumos y coordinación de tareas.",
+    "preguntasPorEntrega": 3,
+    "objetivoPreguntas": 6,
+    "requiereAprobacionPreguntas": true
+  },
+  "usuarios": ["Operaciones de Campo", "Administración", "Mantenimiento"],
+  "evidencia": [
+    {"id":"a1","funcion":"Operaciones de Campo","cicloId":"eval-agro-01","bloque":"B4","titulo":"¿Cómo se registran las tareas diarias?","contenido":"El encargado registra labores, lote, maquinaria utilizada y horas trabajadas al finalizar cada jornada."},
+    {"id":"a2","funcion":"Administración","cicloId":"otro","bloque":"B5","titulo":"¿Cómo recibe los gastos del campo?","contenido":"Administración recibe de Operaciones de Campo las rendiciones de combustible, insumos y viáticos con comprobantes para su control."},
+    {"id":"a3","funcion":"Mantenimiento","cicloId":"otro","bloque":"B5","titulo":"¿Cómo coordina reparaciones?","contenido":"Mantenimiento recibe avisos del encargado de campo cuando una máquina presenta una falla y confirma la fecha de reparación."}
+  ],
+  "criterios": {
+    "bloquesRequeridos": ["B5"],
+    "areasPermitidas": ["Administración", "Mantenimiento"],
+    "debeMencionar": ["Administración"],
+    "terminosProhibidos": ["Desarrollo", "Gestión de Producto", "SAP"]
+  },
+  "afirmacionSinEvidencia": {"bloque":"B5","texto":"El puesto utiliza SAP para autorizar pagos."}
+}

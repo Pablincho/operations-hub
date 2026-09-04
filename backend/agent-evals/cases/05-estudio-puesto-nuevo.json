@@ -1,0 +1,26 @@
+{
+  "id": "estudio-puesto-nuevo-evidencia-escasa",
+  "descripcion": "Puesto nuevo con una única respuesta: los agentes deben preguntar y no completar huecos por su cuenta.",
+  "cycle": {
+    "id": "eval-estudio-05",
+    "organizacionId": "eval-estudio",
+    "funcion": "Analista de Implementaciones",
+    "estado": "relevamiento",
+    "temas": ["Conocimientos difíciles de transferir"],
+    "orientacion": "Identificar criterios prácticos y decisiones que dependen de experiencia.",
+    "preguntasPorEntrega": 3,
+    "objetivoPreguntas": 6,
+    "requiereAprobacionPreguntas": true
+  },
+  "usuarios": ["Analista de Implementaciones", "Soporte al Cliente"],
+  "evidencia": [
+    {"id":"e1","funcion":"Analista de Implementaciones","cicloId":"eval-estudio-05","bloque":"B3","titulo":"¿Qué información revisa al iniciar una implementación?","contenido":"Se revisa el alcance acordado con el cliente y se identifican las personas de contacto antes de planificar las tareas."}
+  ],
+  "criterios": {
+    "bloquesRequeridos": ["B3"],
+    "areasPermitidas": ["Soporte al Cliente"],
+    "debeMencionar": ["criterio"],
+    "terminosProhibidos": ["contraseña", "credencial", "token"]
+  },
+  "afirmacionSinEvidencia": {"bloque":"B3","texto":"El puesto certifica todos los proyectos con la norma ISO 27001."}
+}
