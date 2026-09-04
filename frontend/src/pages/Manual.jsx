@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { diffWords } from 'diff'
 import { pdf } from '@react-pdf/renderer'
 import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer'
-import api from '@/services/api'
+import api, { getShared } from '@/services/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -11,9 +10,10 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { FUNC_ICONS, FUNC_COLORS } from '@/lib/utils'
 import { useTour } from '@/lib/tour'
+import CheckinBlock from '@/components/CheckinBlock'
 import {
   Loader2, Download, Send, Sparkles, ChevronDown, ChevronUp,
-  Pencil, CheckCircle2, RotateCcw, X, GitCompare, FileText, CalendarCheck, ArrowRight, HelpCircle
+  Pencil, CheckCircle2, RotateCcw, X, GitCompare, FileText, HelpCircle, Ban
 } from 'lucide-react'
 
 const LOGO_URL = 'https://res.cloudinary.com/dmigevwah/image/upload/f_png/v1777495745/don_emilio/don_emilio_logo'
@@ -153,7 +153,7 @@ function ManualPDF({ funcion, manual, historial = [] }) {
             </View>
             {ocupanteNombre && (
               <View style={pdfStyles.b1Row}>
-                <Text style={pdfStyles.b1Label}>Ocupante:</Text>
+                <Text style={pdfStyles.b1Label}>Operativo:</Text>
                 <Text style={pdfStyles.b1Value}>{ocupanteNombre}</Text>
               </View>
             )}
@@ -236,7 +236,7 @@ function WordDiff({ oldText, newText }) {
 }
 
 // ─── Manual section ───────────────────────────────────────────────────────────
-function ManualSection({ funcion, color, onManualEstado, isPrimary, autoRegenTrigger, cycle, onCycleChange }) {
+function ManualSection({ funcion, color, onManualEstado, isPrimary, autoRegenTrigger, cycle, onCycleChange, refreshTrigger }) {
   const { user } = useAuth()
   const autoaprobarManual = !!user?.autoaprobarManual
   const [manual, setManual] = useState(null)
@@ -248,13 +248,15 @@ function ManualSection({ funcion, color, onManualEstado, isPrimary, autoRegenTri
   const [expanded, setExpanded] = useState({})
   const [showHistorial, setShowHistorial] = useState(false)
   const [showEnviarDialog, setShowEnviarDialog] = useState(false)
-  const [notaEnvio, setNotaEnvio] = useState('')
   const [contenidoAnterior, setContenidoAnterior] = useState(null)
   const [showDiff, setShowDiff] = useState(true)
 
   useEffect(() => { loadManual() }, [funcion]) // eslint-disable-line react-hooks/exhaustive-deps -- recarga por función
   useEffect(() => {
-    onManualEstado?.(manual ? { estado: manual.estado, generadoEn: manual.generadoEn } : null)
+    if (refreshTrigger) loadManual()
+  }, [refreshTrigger]) // eslint-disable-line react-hooks/exhaustive-deps -- una respuesta fue editada
+  useEffect(() => {
+    onManualEstado?.(manual ? { estado: manual.estado, generadoEn: manual.generadoEn, bloquesEstado: manual.bloquesEstado || {} } : null)
   }, [manual]) // eslint-disable-line react-hooks/exhaustive-deps -- callback informativo del padre
   useEffect(() => {
     if (!autoRegenTrigger || !['listo_para_generar', 'borrador'].includes(cycle?.estado)) return
@@ -278,7 +280,12 @@ function ManualSection({ funcion, color, onManualEstado, isPrimary, autoRegenTri
   async function generarOActualizar() {
     setGenerating(true)
     try {
-      await api.post(`/manual/${encodeURIComponent(funcion)}/generar`)
+      await api.post(`/manual/${encodeURIComponent(funcion)}/generar`, null, {
+        agentActivity: {
+          titulo: 'Generando el manual',
+          descripcion: 'Los agentes están integrando las respuestas, redactando y verificando el manual.'
+        }
+      })
       // Recargar para traer la base del diff (contenidoAnterior) actualizada
       await loadManual()
       await onCycleChange?.()
@@ -290,10 +297,9 @@ function ManualSection({ funcion, color, onManualEstado, isPrimary, autoRegenTri
   async function enviarAAprobacion() {
     setSending(true)
     try {
-      const res = await api.post(`/manual/${encodeURIComponent(funcion)}/enviar`, { nota: notaEnvio })
+      const res = await api.post(`/manual/${encodeURIComponent(funcion)}/enviar`, {})
       setManual(res.data.data)
       setShowEnviarDialog(false)
-      setNotaEnvio('')
       await onCycleChange?.()
     } catch (err) {
       alert(err.response?.data?.error || 'Error al enviar')
@@ -324,6 +330,12 @@ function ManualSection({ funcion, color, onManualEstado, isPrimary, autoRegenTri
   const estadoInfo = manual ? (ESTADO_LABELS[manual.estado] || ESTADO_LABELS.borrador) : null
   const versionesAnteriores = historial.filter(h => h.estado === 'obsoleto')
   const canGenerate = ['listo_para_generar', 'borrador'].includes(cycle?.estado)
+  const bloquesDevueltos = Object.entries(manual?.bloquesEstado || {}).filter(([, block]) => block.estado === 'devuelto')
+  const correctionStatus = manual?.correctionStatus
+  const correctionBlocked = correctionStatus?.required && !correctionStatus?.ready
+  const missingCorrectionNames = (correctionStatus?.missingBlocks || [])
+    .map(key => key === 'GENERAL' ? 'la observación general' : (BLOQUE_NOMBRES[key] || key))
+    .join(', ')
 
   // Un bloque está "editado" si su contenido difiere de la última versión aprobada
   // (no se marca en manuales ya vigentes, donde no hay cambios pendientes que mostrar)
@@ -351,23 +363,58 @@ function ManualSection({ funcion, color, onManualEstado, isPrimary, autoRegenTri
             <span className="text-xs text-muted-foreground px-2 py-1 bg-muted rounded-lg">Solo lectura</span>
           )}
           {isPrimary !== false && manual?.estado !== 'en_revision' && canGenerate && (
-            <Button data-tour="manual-generar" size="sm" onClick={generarOActualizar} disabled={generating} className="gap-1 text-xs h-7" style={{ background: color, color: 'white' }}>
-              {generating ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-              {manual ? 'Actualizar' : 'Generar manual'}
-            </Button>
+            <span
+              className={correctionBlocked ? 'cursor-not-allowed' : ''}
+              title={correctionBlocked
+                ? `No podés actualizar todavía. Primero editá una respuesta de: ${missingCorrectionNames}.`
+                : undefined}
+            >
+              <Button
+                data-tour="manual-generar"
+                size="sm"
+                onClick={generarOActualizar}
+                disabled={generating || correctionBlocked}
+                className="gap-1 text-xs h-7"
+                style={{ background: color, color: 'white' }}
+              >
+                {generating
+                  ? <Loader2 size={12} className="animate-spin" />
+                  : correctionBlocked
+                    ? <Ban size={12} />
+                    : <Sparkles size={12} />}
+                {manual ? 'Actualizar' : 'Generar manual'}
+              </Button>
+            </span>
           )}
           {manual && (
             <>
-              <Button size="sm" variant="outline" onClick={exportarPDF} disabled={exporting} className="gap-1 text-xs h-7">
-                {exporting ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
-                PDF
-              </Button>
+              <span
+                className={correctionBlocked ? 'cursor-not-allowed' : ''}
+                title={correctionBlocked
+                  ? 'No podés descargar el PDF mientras haya correcciones pendientes. Corregí las respuestas y actualizá el manual primero.'
+                  : undefined}
+              >
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={exportarPDF}
+                  disabled={exporting || correctionBlocked}
+                  className="gap-1 text-xs h-7"
+                >
+                  {exporting
+                    ? <Loader2 size={12} className="animate-spin" />
+                    : correctionBlocked
+                      ? <Ban size={12} />
+                      : <Download size={12} />}
+                  PDF
+                </Button>
+              </span>
               {isPrimary !== false && manual.estado === 'borrador' && (() => {
                 const tieneDevueltos = manual.bloquesEstado &&
                   Object.values(manual.bloquesEstado).some(b => b.estado === 'devuelto')
                 return tieneDevueltos ? (
                   <span className="text-xs text-orange-600 font-medium px-2 py-1 bg-orange-50 rounded-lg border border-orange-200">
-                    Actualizá el manual antes de reenviar
+                    Revisá las observaciones y actualizá el manual antes de reenviar
                   </span>
                 ) : (
                   <Button data-tour="manual-enviar" size="sm" variant="outline" onClick={() => setShowEnviarDialog(true)} className="gap-1 text-xs h-7 border-blue-300 text-blue-700 hover:bg-blue-50">
@@ -403,9 +450,11 @@ function ManualSection({ funcion, color, onManualEstado, isPrimary, autoRegenTri
           </p>
 
           {/* Estado por bloque durante revisión */}
-          {manual.estado === 'en_revision' && manual.bloquesEstado && (
-            <div className="mb-3 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2.5">
-              <p className="text-xs font-semibold text-blue-700 mb-2">Estado de revisión</p>
+          {(manual.estado === 'en_revision' || bloquesDevueltos.length > 0) && manual.bloquesEstado && (
+            <div className={`mb-3 rounded-lg px-3 py-2.5 border ${bloquesDevueltos.length ? 'bg-orange-50 border-orange-200' : 'bg-blue-50 border-blue-100'}`}>
+              <p className={`text-xs font-semibold mb-2 ${bloquesDevueltos.length ? 'text-orange-700' : 'text-blue-700'}`}>
+                {bloquesDevueltos.length ? 'Correcciones solicitadas por el supervisor' : 'Estado de revisión'}
+              </p>
               <div className="flex flex-col gap-1">
                 {Object.entries(BLOQUE_NOMBRES).filter(([k]) => manual.contenido?.[k]).map(([k, nombre]) => {
                   const bs = manual.bloquesEstado?.[k]
@@ -471,6 +520,11 @@ function ManualSection({ funcion, color, onManualEstado, isPrimary, autoRegenTri
                       ? <WordDiff oldText={maskEncrypted(contenidoAnterior[key] || null)} newText={maskEncrypted(manual.contenido[key])} />
                       : <p className="text-xs leading-relaxed whitespace-pre-wrap">{maskEncrypted(manual.contenido[key])}</p>
                     }
+                    {manual.bloquesEstado?.[key]?.observacion && (
+                      <div className="mt-3 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-800">
+                        <span className="font-semibold">Observación del supervisor: </span>{manual.bloquesEstado[key].observacion}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -519,12 +573,8 @@ function ManualSection({ funcion, color, onManualEstado, isPrimary, autoRegenTri
               ? <>Tu manual de <strong>{funcion}</strong> (v{manual?.version}) quedará vigente de inmediato. No tenés un revisor asignado, así que se publica directamente.</>
               : <>Tu manual de <strong>{funcion}</strong> (v{manual?.version}) será enviado a tu supervisor para revisión. No podrás editarlo hasta recibir respuesta.</>}
           </p>
-          <div>
-            <label className="text-xs font-medium mb-1 block">{autoaprobarManual ? 'Nota (opcional)' : 'Nota para el revisor (opcional)'}</label>
-            <Textarea placeholder="Agregá contexto o comentarios relevantes..." value={notaEnvio} onChange={e => setNotaEnvio(e.target.value)} rows={3} />
-          </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setShowEnviarDialog(false); setNotaEnvio('') }}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setShowEnviarDialog(false)}>Cancelar</Button>
             <Button onClick={enviarAAprobacion} disabled={sending} className="gap-1" style={{ background: color, color: 'white' }}>
               {sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
               {autoaprobarManual ? 'Publicar' : 'Enviar'}
@@ -554,7 +604,7 @@ function persistOriginals(map) {
   try { localStorage.setItem(ORIGINAL_KEY, JSON.stringify(map)) } catch {}
 }
 
-function EntradasSection({ funcion, color, refreshTrigger, manualEstado, generadoEn, isPrimary, clearEditedTrigger, onDiscardIncorporado }) {
+function EntradasSection({ funcion, color, refreshTrigger, manualEstado, bloquesEstado, generadoEn, isPrimary, clearEditedTrigger, onDiscardIncorporado, onEntrySaved }) {
   const [entries, setEntries] = useState([])
   const [loading, setLoading] = useState(false)
   const [expanded, setExpanded] = useState(false)
@@ -563,6 +613,11 @@ function EntradasSection({ funcion, color, refreshTrigger, manualEstado, generad
   const [saving, setSaving] = useState(false)
   const [editedIds, setEditedIds] = useState(loadEditedIds)
   const [autoSensibleIds, setAutoSensibleIds] = useState(new Set())
+  const hasReturnedBlocks = Object.values(bloquesEstado || {}).some(block => block.estado === 'devuelto')
+
+  useEffect(() => {
+    if (hasReturnedBlocks) setExpanded(true)
+  }, [hasReturnedBlocks])
 
   useEffect(() => { loadEntries() }, [funcion, refreshTrigger]) // eslint-disable-line react-hooks/exhaustive-deps -- recarga por claves
 
@@ -631,6 +686,7 @@ function EntradasSection({ funcion, color, refreshTrigger, manualEstado, generad
         return next
       })
       if (res.data.sensibleAutoDetectado) setAutoSensibleIds(prev => new Set([...prev, id]))
+      onEntrySaved?.()
     } catch { /* ignore */ }
     finally { setSaving(false) }
   }
@@ -658,15 +714,23 @@ function EntradasSection({ funcion, color, refreshTrigger, manualEstado, generad
               new Date(entry.updatedAt) <= new Date(generadoEn)
             const isAutoSensible = autoSensibleIds.has(entry.id) && manualEstado === 'borrador'
             const isBlocked = entry._bloqueado === true
+            const returnedBlock = bloquesEstado?.[entry.bloque]?.estado === 'devuelto' ? bloquesEstado[entry.bloque] : null
             return (
               <div
                 key={entry.id}
                 className={`rounded-lg p-3 ${
-                  incorporado ? 'ring-2 ring-green-300 bg-green-50'
+                  returnedBlock ? 'ring-2 ring-orange-400 bg-orange-50'
+                  : incorporado ? 'ring-2 ring-green-300 bg-green-50'
                   : isEdited ? 'ring-2 ring-amber-300 bg-amber-50'
                   : 'bg-[#f9faf9]'
                 }`}
               >
+                {returnedBlock && (
+                  <div className="mb-2 rounded-md border border-orange-200 bg-white/70 px-2.5 py-2 text-xs text-orange-800">
+                    <p className="font-semibold">Esta respuesta corresponde al bloque devuelto: {BLOQUE_NOMBRES[entry.bloque] || entry.bloque}</p>
+                    {returnedBlock.observacion && <p className="mt-0.5">Observación: {returnedBlock.observacion}</p>}
+                  </div>
+                )}
                 <p className="text-xs font-semibold mb-1 flex items-center gap-1" style={{ color }}>
                   {entry.titulo}
                   {entry.esSensible && !isBlocked && (
@@ -677,7 +741,14 @@ function EntradasSection({ funcion, color, refreshTrigger, manualEstado, generad
                   <div>
                     <Textarea value={editContent} onChange={e => setEditContent(e.target.value)} rows={3} autoFocus className="text-sm" />
                     <div className="flex gap-2 mt-2">
-                      <Button size="sm" onClick={() => saveEdit(entry.id)} disabled={saving} className="text-xs h-7 gap-1" style={{ background: color, color: 'white' }}>
+                      <Button
+                        size="sm"
+                        onClick={() => saveEdit(entry.id)}
+                        disabled={saving || editContent === entry.contenido}
+                        title={editContent === entry.contenido ? 'Modificá la respuesta antes de guardar' : undefined}
+                        className="text-xs h-7 gap-1"
+                        style={{ background: color, color: 'white' }}
+                      >
                         {saving && <Loader2 size={11} className="animate-spin" />}
                         Guardar
                       </Button>
@@ -726,33 +797,37 @@ function EntradasSection({ funcion, color, refreshTrigger, manualEstado, generad
 // ─── Mi Manual page ───────────────────────────────────────────────────────────
 export default function MiManual() {
   const { user, refreshUser } = useAuth()
-  const navigate = useNavigate()
   const funciones = user?.funciones || []
   const [selectedFn, setSelectedFn] = useState('')
   const [initializing, setInitializing] = useState(true)
   const [todaySessions, setTodaySessions] = useState([])
   const [onboardingStatus, setOnboardingStatus] = useState({})
+  const [dailyCounts, setDailyCounts] = useState({})
   const [entryCounts, setEntryCounts] = useState({})
   const refreshEntries = 0
   const [manualMeta, setManualMeta] = useState({})
   const [clearEditedTrigger, setClearEditedTrigger] = useState(0)
   const [autoRegenTrigger, setAutoRegenTrigger] = useState(0)
+  const [manualRefreshTrigger, setManualRefreshTrigger] = useState(0)
   const [primaryStatusMap, setPrimaryStatusMap] = useState({})
   const [cycleStatusMap, setCycleStatusMap] = useState({})
+  const [checkinAvailabilityMap, setCheckinAvailabilityMap] = useState({})
 
   useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps -- carga inicial
 
   async function load() {
     try {
-      const fresh = await refreshUser()
+      // Las dos van juntas: el check-in no depende de lo que devuelva refreshUser.
+      const [fresh, checkin] = await Promise.all([refreshUser(), getShared('/checkin/hoy')])
       const fns = fresh?.funciones || []
       setSelectedFn(prev => prev || fns[0] || '')
-      const res = await api.get('/checkin/hoy')
-      setTodaySessions(res.data.data || [])
-      setOnboardingStatus(res.data.onboardingStatus || {})
-      setEntryCounts(res.data.entryCounts || {})
-      setPrimaryStatusMap(res.data.primaryStatusMap || {})
-      setCycleStatusMap(res.data.cycleStatusMap || {})
+      setTodaySessions(checkin.data || [])
+      setOnboardingStatus(checkin.onboardingStatus || {})
+      setDailyCounts(checkin.dailyCounts || {})
+      setEntryCounts(checkin.entryCounts || {})
+      setPrimaryStatusMap(checkin.primaryStatusMap || {})
+      setCycleStatusMap(checkin.cycleStatusMap || {})
+      setCheckinAvailabilityMap(checkin.checkinAvailabilityMap || {})
     } catch { /* ignore */ }
     finally { setInitializing(false) }
   }
@@ -761,15 +836,16 @@ export default function MiManual() {
     return todaySessions.find(s => s.funcion === fn) || null
   }
 
-  // El check-in se responde únicamente desde Inicio; acá solo se refleja si hay pendiente.
-  // Si el usuario está de vacaciones, no se muestra nada.
+  // El check-in puede responderse desde Inicio o Mi Manual. Si el usuario está de
+  // vacaciones, no se muestra nada en ninguna de las dos pantallas.
   function checkinPendiente(fn) {
     if (user?.enVacaciones) return false
     if (primaryStatusMap[fn] === false) return false
     const cycle = cycleStatusMap[fn]
     if (!cycle || cycle.estado === 'completado') return false
-    if (cycle.estado !== 'relevamiento' && !(cycle.esLegacy && cycle.estado === 'configuracion')) return false
-    return !sessionForFuncion(fn)?.completado
+    const session = sessionForFuncion(fn)
+    if (session && !session.completado) return true
+    return checkinAvailabilityMap[fn]?.estado === 'disponible'
   }
 
   // Los bloques del manual y las respuestas anteriores viven en secciones hijas que
@@ -899,30 +975,27 @@ export default function MiManual() {
       <div className="flex items-center gap-3 mb-5">
         {target && <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden"><div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: color }} /></div>}
         <span className="text-xs text-muted-foreground shrink-0">
-          {selectedCycle ? `Ciclo ${selectedCycle.numero} · ` : ''}{entryCounts[selectedFn] || 0}{target ? `/${target} · ${pct}%` : ' respuestas'}
+          {selectedCycle ? `Ciclo ${selectedCycle.numero} · ` : ''}{entryCounts[selectedFn] || 0} respuestas{target ? ` · límite: ${target} preguntas · ${pct}%` : ''}
         </span>
       </div>
 
       <Card>
         <CardContent className="p-5">
-          {/* 1: Aviso: el check-in se responde desde Inicio */}
+          {/* 1: Check-in disponible también desde Mi Manual */}
           {checkinPendiente(selectedFn) && (
-            <button
-              onClick={() => navigate('/dashboard')}
-              className="w-full flex items-center gap-3 mb-5 px-4 py-3 rounded-xl text-left cursor-pointer hover:opacity-90 transition-opacity"
-              style={{ background: '#fff8e1', border: '1px solid #f0d060' }}
-            >
-              <CalendarCheck className="text-amber-600 shrink-0" size={18} />
-              <div className="flex-1">
-                <p className="font-semibold text-xs text-amber-900">
-                  {onboardingStatus[selectedFn]
-                    ? 'Tenés el check-in diario pendiente'
-                    : 'Tenés las preguntas iniciales pendientes'}
-                </p>
-                <p className="text-xs text-amber-700">Respondelo desde Inicio para seguir documentando tu función.</p>
-              </div>
-              <ArrowRight size={15} className="text-amber-600 shrink-0" />
-            </button>
+            <CheckinBlock
+              key={`${selectedFn}-${selectedCycle?.id || 'sin-ciclo'}`}
+              funcion={selectedFn}
+              color={color}
+              todaySession={sessionForFuncion(selectedFn)}
+              onboardingDone={!!onboardingStatus[selectedFn]}
+              diasCompletos={dailyCounts[selectedFn] || 0}
+              cycle={selectedCycle}
+              onComplete={load}
+              isPrimary={primaryStatusMap[selectedFn] ?? true}
+              preguntasPendientes={checkinAvailabilityMap[selectedFn]?.preguntasPendientes || 0}
+              permiteResponderTodas={checkinAvailabilityMap[selectedFn]?.permiteResponderTodas ?? false}
+            />
           )}
 
           {/* 2: Manual */}
@@ -937,6 +1010,7 @@ export default function MiManual() {
             autoRegenTrigger={autoRegenTrigger}
             cycle={selectedCycle}
             onCycleChange={load}
+            refreshTrigger={manualRefreshTrigger}
           />
 
           {/* 3: Previous answers */}
@@ -946,10 +1020,12 @@ export default function MiManual() {
               color={color}
               refreshTrigger={refreshEntries}
               manualEstado={manualMeta[selectedFn]?.estado}
+              bloquesEstado={manualMeta[selectedFn]?.bloquesEstado}
               generadoEn={manualMeta[selectedFn]?.generadoEn}
               isPrimary={primaryStatusMap[selectedFn] ?? true}
               clearEditedTrigger={clearEditedTrigger}
               onDiscardIncorporado={() => setAutoRegenTrigger(n => n + 1)}
+              onEntrySaved={() => setManualRefreshTrigger(n => n + 1)}
             />
           )}
         </CardContent>

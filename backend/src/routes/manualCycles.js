@@ -2,14 +2,16 @@ import { Router } from 'express';
 import { Op, fn, col } from 'sequelize';
 import { verifyJWT, canAccessFuncion } from '../auth.js';
 import {
+  db,
   Manual,
   KnowledgeEntry,
   ManualAgentRun,
   ManualCycle,
   ManualQuestion,
-  Usuario
+  Usuario,
+  Organizacion
 } from '../models/index.js';
-import { getPrimaryOccupant, userCanManageCycle } from '../services/positionService.js';
+import { getPrimaryOccupant, getPrimaryOccupantsByFuncion, userCanManageCycle } from '../services/positionService.js';
 import { planificarPreguntasCiclo, recuperarCicloAtascado } from '../services/manualAgentService.js';
 
 const router = Router();
@@ -55,26 +57,82 @@ function sanitizeConfig(body, base = {}) {
     objetivoPreguntas: objetivoRaw,
     requiereAprobacionPreguntas: body.requiereAprobacionPreguntas === undefined
       ? (base.requiereAprobacionPreguntas ?? false)
-      : !!body.requiereAprobacionPreguntas
+      : !!body.requiereAprobacionPreguntas,
+    permitirResponderTodas: body.permitirResponderTodas === undefined
+      ? (base.permitirResponderTodas ?? false)
+      : !!body.permitirResponderTodas
   };
 }
 
-async function cycleSummary(cycle) {
-  const [questionRows, answered, manual] = await Promise.all([
-    ManualQuestion.findAll({
-      where: { cicloId: cycle.id },
-      attributes: ['estado', [fn('COUNT', col('id')), 'cantidad']],
-      group: ['estado'], raw: true
-    }),
-    KnowledgeEntry.count({ where: { cicloId: cycle.id, categoria: 'checkin' } }),
-    Manual.findOne({ where: { cicloId: cycle.id }, order: [['createdAt', 'DESC']], attributes: ['id', 'estado', 'version'] })
-  ]);
+const GENERAL_CONFIG_DEFAULTS = {
+  preguntasPorEntrega: 3,
+  frecuencia: 'diaria',
+  intervaloDias: 1,
+  objetivoPreguntas: null,
+  requiereAprobacionPreguntas: false,
+  permitirResponderTodas: false
+};
+
+function sanitizeGeneralConfig(body, base = GENERAL_CONFIG_DEFAULTS) {
+  const sanitized = sanitizeConfig(body, { ...GENERAL_CONFIG_DEFAULTS, ...base });
   return {
-    ...cycle.toJSON(),
-    conteoPreguntas: Object.fromEntries(questionRows.map(row => [row.estado, Number(row.cantidad)])),
-    respuestasCiclo: answered,
-    manual: manual?.toJSON() || null
+    preguntasPorEntrega: sanitized.preguntasPorEntrega,
+    frecuencia: sanitized.frecuencia,
+    intervaloDias: sanitized.intervaloDias,
+    objetivoPreguntas: sanitized.objetivoPreguntas,
+    requiereAprobacionPreguntas: sanitized.requiereAprobacionPreguntas,
+    permitirResponderTodas: sanitized.permitirResponderTodas
   };
+}
+
+function generalConfigFor(org, supervisorId) {
+  return sanitizeGeneralConfig(org?.config?.manualCycleDefaultsBySupervisor?.[supervisorId] || {});
+}
+
+// Resume varios ciclos con 3 consultas en total. Resumirlos de a uno multiplicaba esas
+// 3 por la cantidad de ciclos, que es lo que hacía lento el listado de puestos.
+async function cycleSummaries(cycles) {
+  if (!cycles.length) return [];
+  const ids = cycles.map(cycle => cycle.id);
+  const [questionRows, answerRows, manuales] = await Promise.all([
+    ManualQuestion.findAll({
+      where: { cicloId: { [Op.in]: ids } },
+      attributes: ['cicloId', 'estado', [fn('COUNT', col('id')), 'cantidad']],
+      group: ['cicloId', 'estado'], raw: true
+    }),
+    KnowledgeEntry.findAll({
+      where: { cicloId: { [Op.in]: ids }, categoria: 'checkin' },
+      attributes: ['cicloId', [fn('COUNT', col('id')), 'cantidad']],
+      group: ['cicloId'], raw: true
+    }),
+    Manual.findAll({
+      where: { cicloId: { [Op.in]: ids } },
+      order: [['createdAt', 'DESC']],
+      attributes: ['id', 'estado', 'version', 'cicloId']
+    })
+  ]);
+
+  const preguntasPorCiclo = new Map();
+  for (const row of questionRows) {
+    if (!preguntasPorCiclo.has(row.cicloId)) preguntasPorCiclo.set(row.cicloId, {});
+    preguntasPorCiclo.get(row.cicloId)[row.estado] = Number(row.cantidad);
+  }
+  const respuestasPorCiclo = new Map(answerRows.map(row => [row.cicloId, Number(row.cantidad)]));
+  // Vienen ordenados por fecha descendente, así que el primero de cada ciclo es el vigente.
+  const manualPorCiclo = new Map();
+  for (const manual of manuales) if (!manualPorCiclo.has(manual.cicloId)) manualPorCiclo.set(manual.cicloId, manual);
+
+  return cycles.map(cycle => ({
+    ...cycle.toJSON(),
+    conteoPreguntas: preguntasPorCiclo.get(cycle.id) || {},
+    respuestasCiclo: respuestasPorCiclo.get(cycle.id) || 0,
+    manual: manualPorCiclo.get(cycle.id)?.toJSON() || null
+  }));
+}
+
+async function cycleSummary(cycle) {
+  const [resumen] = await cycleSummaries([cycle]);
+  return resumen;
 }
 
 async function managedCycle(req, res) {
@@ -99,6 +157,80 @@ async function managedCycle(req, res) {
 
 router.get('/temas', (_req, res) => res.json({ success: true, data: TOPIC_OPTIONS }));
 
+// Plantilla operativa del supervisor. No incluye temas ni orientación porque esos
+// campos describen el puesto y deben poder seguir ajustándose individualmente.
+router.get('/configuracion-general', async (req, res) => {
+  try {
+    const org = await Organizacion.findByPk(req.user.organizacionId, { attributes: ['config'] });
+    res.json({ success: true, data: generalConfigFor(org, req.user.id) });
+  } catch (error) {
+    console.error('[manual-cycles] Error obteniendo configuración general:', error.message);
+    res.status(500).json({ success: false, error: 'Error interno' });
+  }
+});
+
+router.patch('/configuracion-general', async (req, res) => {
+  try {
+    const result = await db.transaction(async transaction => {
+      const org = await Organizacion.findByPk(req.user.organizacionId, {
+        transaction,
+        lock: transaction.LOCK.UPDATE
+      });
+      if (!org) {
+        const error = new Error('Organización no encontrada');
+        error.status = 404;
+        throw error;
+      }
+
+      const current = generalConfigFor(org, req.user.id);
+      const defaults = sanitizeGeneralConfig(req.body, current);
+      const orgConfig = org.config || {};
+      await org.update({
+        config: {
+          ...orgConfig,
+          manualCycleDefaultsBySupervisor: {
+            ...(orgConfig.manualCycleDefaultsBySupervisor || {}),
+            [req.user.id]: defaults
+          }
+        }
+      }, { transaction });
+
+      let appliedCycles = 0;
+      if (req.body.aplicarACiclos === true) {
+        const occupants = await Usuario.findAll({
+          where: {
+            organizacionId: req.user.organizacionId,
+            activo: true,
+            [Op.or]: [
+              { supervisorId: req.user.id },
+              { id: req.user.id, autoaprobarManual: true }
+            ]
+          },
+          attributes: ['id'],
+          transaction
+        });
+        const occupantIds = occupants.map(occupant => occupant.id);
+        if (occupantIds.length) {
+          [appliedCycles] = await ManualCycle.update(defaults, {
+            where: {
+              organizacionId: req.user.organizacionId,
+              ocupanteId: { [Op.in]: occupantIds },
+              estado: { [Op.in]: ['configuracion', 'relevamiento', 'pausado'] }
+            },
+            transaction
+          });
+        }
+      }
+
+      return { defaults, appliedCycles };
+    });
+    res.json({ success: true, data: result });
+  } catch (error) {
+    console.error('[manual-cycles] Error guardando configuración general:', error.message);
+    res.status(error.status || 500).json({ success: false, error: error.status ? error.message : 'Error interno' });
+  }
+});
+
 router.get('/puestos', async (req, res) => {
   try {
     const occupants = await Usuario.findAll({
@@ -109,19 +241,38 @@ router.get('/puestos', async (req, res) => {
       },
       attributes: ['id', 'nombre', 'funciones', 'autoaprobarManual']
     });
+    const funciones = [...new Set(occupants.flatMap(occupant => occupant.funciones || []))];
+    if (!funciones.length) return res.json({ success: true, data: [] });
+
+    // Antes esto era un N+1 anidado: por cada par ocupante-función salían 6 o 7 consultas
+    // secuenciales. Ahora el ocupante principal y el último ciclo de todas las funciones
+    // se resuelven de una sola vez, y los resúmenes en un único bloque al final.
+    const [principales, cycles] = await Promise.all([
+      getPrimaryOccupantsByFuncion(req.user.organizacionId, funciones),
+      ManualCycle.findAll({
+        where: { organizacionId: req.user.organizacionId, funcion: { [Op.in]: funciones } },
+        order: [['numero', 'DESC']]
+      })
+    ]);
+    const ultimoCiclo = new Map();
+    for (const cycle of cycles) if (!ultimoCiclo.has(cycle.funcion)) ultimoCiclo.set(cycle.funcion, cycle);
+
     const positions = [];
     for (const occupant of occupants) {
       for (const funcion of occupant.funciones || []) {
-        const primary = await getPrimaryOccupant(req.user.organizacionId, funcion);
-        if (primary?.id !== occupant.id) continue;
-        const current = await ManualCycle.findOne({
-          where: { organizacionId: req.user.organizacionId, funcion },
-          order: [['numero', 'DESC']]
-        });
-        positions.push({ funcion, ocupante: occupant.toJSON(), ciclo: current ? await cycleSummary(current) : null });
+        if (principales.get(funcion)?.id !== occupant.id) continue;
+        positions.push({ funcion, ocupante: occupant.toJSON(), ciclo: ultimoCiclo.get(funcion) || null });
       }
     }
-    res.json({ success: true, data: positions });
+    const resumenes = await cycleSummaries(positions.map(position => position.ciclo).filter(Boolean));
+    const resumenPorCiclo = new Map(resumenes.map(resumen => [resumen.id, resumen]));
+    res.json({
+      success: true,
+      data: positions.map(position => ({
+        ...position,
+        ciclo: position.ciclo ? resumenPorCiclo.get(position.ciclo.id) : null
+      }))
+    });
   } catch (error) {
     console.error('[manual-cycles] Error listando puestos:', error.message);
     res.status(500).json({ success: false, error: 'Error interno' });
@@ -141,7 +292,7 @@ router.get('/', async (req, res) => {
       where[Op.or] = [{ ocupanteId: req.user.id }, { supervisorId: req.user.id }];
     }
     const cycles = await ManualCycle.findAll({ where, order: [['funcion', 'ASC'], ['numero', 'DESC']] });
-    res.json({ success: true, data: await Promise.all(cycles.map(cycleSummary)) });
+    res.json({ success: true, data: await cycleSummaries(cycles) });
   } catch (error) {
     console.error('[manual-cycles] Error listando ciclos:', error.message);
     res.status(500).json({ success: false, error: 'Error interno' });
@@ -180,7 +331,7 @@ router.post('/', async (req, res) => {
     const funcion = String(req.body.funcion || '').trim();
     if (!funcion) return res.status(400).json({ success: false, error: 'funcion requerida' });
     const occupant = await getPrimaryOccupant(req.user.organizacionId, funcion);
-    if (!occupant) return res.status(400).json({ success: false, error: 'Configurá primero el ocupante principal del puesto' });
+    if (!occupant) return res.status(400).json({ success: false, error: 'Configurá primero el operativo principal del puesto' });
     const isSelfManaged = occupant.id === req.user.id && occupant.autoaprobarManual;
     if (occupant.supervisorId !== req.user.id && !isSelfManaged) {
       return res.status(403).json({ success: false, error: 'Solo el supervisor asignado puede iniciar un ciclo' });
@@ -198,7 +349,12 @@ router.post('/', async (req, res) => {
       temas: latest.proximosTemas?.length ? latest.proximosTemas : latest.temas,
       orientacion: latest.proximaOrientacion || latest.orientacion
     } : {};
-    const config = sanitizeConfig(req.body, inherited);
+    const org = await Organizacion.findByPk(req.user.organizacionId, { attributes: ['config'] });
+    const storedGeneral = org?.config?.manualCycleDefaultsBySupervisor?.[req.user.id];
+    const base = storedGeneral
+      ? { ...inherited, ...sanitizeGeneralConfig(storedGeneral) }
+      : inherited;
+    const config = sanitizeConfig(req.body, base);
     const cycle = await ManualCycle.create({
       organizacionId: req.user.organizacionId,
       funcion,

@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { useLocation } from 'react-router-dom'
-import api from '@/services/api'
+import { getShared } from '@/services/api'
 import { useAuth } from './AuthContext'
 
 const NotificationsContext = createContext({ tieneCheckin: false, tieneRevisiones: false })
@@ -13,18 +13,25 @@ export function NotificationsProvider({ children }) {
 
   const isAdmin = ['admin', 'superadmin'].includes(user?.rol)
 
+  // refreshUser() devuelve un objeto nuevo en cada llamada, así que depender de `user`
+  // cambiaba la identidad de refresh y volvía a disparar el efecto: cada pantalla pedía
+  // todo dos veces. Con valores primitivos, si no cambió nada real el efecto no corre.
+  const userId = user?.id || null
+  const enVacaciones = !!user?.enVacaciones
+  const funcionesKey = (user?.funciones || []).join('|')
+
   const refresh = useCallback(async () => {
-    if (!user) return
+    if (!userId) return
 
     // Mi Manual: check-in pendiente en alguna función donde el usuario es ocupante principal.
     // Si está de vacaciones, no se muestra notificación.
     try {
-      if (user.enVacaciones) {
+      if (enVacaciones) {
         setTieneCheckin(false)
       } else {
-        const res = await api.get('/checkin/hoy')
-        const { data: sessions = [], primaryStatusMap = {}, cycleStatusMap = {} } = res.data
-        const funciones = user.funciones || []
+        const payload = await getShared('/checkin/hoy')
+        const { data: sessions = [], primaryStatusMap = {}, cycleStatusMap = {} } = payload
+        const funciones = funcionesKey ? funcionesKey.split('|') : []
         const pendiente = funciones.some(fn => {
           if (primaryStatusMap[fn] === false) return false
           const cycle = cycleStatusMap[fn]
@@ -40,18 +47,18 @@ export function NotificationsProvider({ children }) {
     // Revisiones: manuales pendientes (solo admins)
     if (isAdmin) {
       try {
-        const [manualsRes, cyclesRes] = await Promise.all([
-          api.get('/manual/pendientes'),
-          api.get('/manual-cycles/puestos')
+        const [manuales, puestos] = await Promise.all([
+          getShared('/manual/pendientes'),
+          getShared('/manual-cycles/puestos')
         ])
-        const pendingManuals = (manualsRes.data.data || []).length > 0
-        const pendingQuestions = (cyclesRes.data.data || []).some(position =>
+        const pendingManuals = (manuales.data || []).length > 0
+        const pendingQuestions = (puestos.data || []).some(position =>
           (position.ciclo?.conteoPreguntas?.propuesta || 0) > 0
         )
         setTieneRevisiones(pendingManuals || pendingQuestions)
       } catch {}
     }
-  }, [user, isAdmin])
+  }, [userId, enVacaciones, funcionesKey, isAdmin])
 
   useEffect(() => { refresh() }, [location.pathname, refresh])
 

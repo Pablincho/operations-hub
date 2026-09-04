@@ -113,6 +113,15 @@ router.put('/:id', async (req, res) => {
 
     const { titulo, contenido, categoria, esSensible } = req.body;
 
+    const hasActualInputChange =
+      (titulo !== undefined && titulo !== entry.titulo) ||
+      (contenido !== undefined && contenido !== entry.contenido) ||
+      (categoria !== undefined && categoria !== entry.categoria) ||
+      (esSensible !== undefined && req.user.rol === 'superadmin' && esSensible !== entry.esSensible);
+    if (!hasActualInputChange) {
+      return res.status(400).json({ success: false, error: 'No hiciste ningún cambio para guardar.' });
+    }
+
     // Solo superadmin puede cambiar esSensible manualmente
     const manualSensible = esSensible !== undefined
       ? (req.user.rol === 'superadmin' ? esSensible : entry.esSensible)

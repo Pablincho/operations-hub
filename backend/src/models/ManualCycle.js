@@ -30,6 +30,7 @@ export function ManualCycleModel(sequelize) {
     intervaloDias: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
     objetivoPreguntas: { type: DataTypes.INTEGER, allowNull: true },
     requiereAprobacionPreguntas: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    permitirResponderTodas: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
     esLegacy: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
     iniciadoEn: { type: DataTypes.DATE, allowNull: true },
     relevamientoCerradoEn: { type: DataTypes.DATE, allowNull: true },

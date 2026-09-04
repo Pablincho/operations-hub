@@ -215,7 +215,7 @@ export default function Admin() {
         element: '[data-tour="admin-progreso"]',
         popover: {
           title: 'Progreso por función',
-          description: 'Cuántas respuestas lleva el ciclo actual de cada puesto. La meta solo aparece si el supervisor definió una y siempre es orientativa. El selector "Principal" define quién es el ocupante principal cuando hay más de una persona con esa función asignada.',
+          description: 'Cuántas respuestas lleva el ciclo actual de cada puesto. La meta solo aparece si el supervisor definió una y siempre es orientativa. El selector "Principal" define quién es el operativo principal cuando hay más de una persona con esa función asignada.',
           side: 'bottom'
         }
       },
@@ -302,7 +302,7 @@ export default function Admin() {
                   <span className="text-muted-foreground">{count}{target ? `/${target}` : ''}</span>
                 </div>
                 {target && <Progress value={pct} />}
-                <p className="text-xs text-muted-foreground mt-1">{cycleStatusMap[fn] ? `Ciclo ${cycleStatusMap[fn].numero} · ${target ? `${pct}% de la meta` : 'sin meta fija'}` : 'Sin ciclo iniciado'}</p>
+                <p className="text-xs text-muted-foreground mt-1">{cycleStatusMap[fn] ? `Ciclo ${cycleStatusMap[fn].numero} · ${target ? `${pct}% del límite de ${target} preguntas` : 'sin límite de preguntas'}` : 'Sin ciclo iniciado'}</p>
                 {(() => {
                   const asignados = users.filter(u => u.activo && (u.funciones || []).includes(fn))
                   if (asignados.length === 0) return null

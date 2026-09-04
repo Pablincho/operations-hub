@@ -208,25 +208,21 @@ router.post('/recover/reset', async (req, res) => {
 });
 
 // GET current user (fresh from DB) + reissue JWT so funciones stay current after admin changes
-router.get('/me', verifyJWT, async (req, res) => {
+router.get('/me', verifyJWT, (req, res) => {
   try {
-    const usuario = await Usuario.findOne({
-      where: { id: req.user.id, activo: true },
-      attributes: { exclude: ['passwordHash', 'resetTokenHash', 'resetTokenExpiresAt'] }
-    });
-    if (!usuario) return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
-
+    // verifyJWT ya trajo al usuario fresco de la base, activo y sin campos sensibles,
+    // así que volver a consultarlo acá era un viaje entero de más en cada carga.
     const payload = {
-      id: usuario.id,
-      email: usuario.email,
-      nombre: usuario.nombre,
-      rol: usuario.rol,
-      funciones: usuario.funciones,
-      organizacionId: usuario.organizacionId
+      id: req.user.id,
+      email: req.user.email,
+      nombre: req.user.nombre,
+      rol: req.user.rol,
+      funciones: req.user.funciones,
+      organizacionId: req.user.organizacionId
     };
     const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '8h' });
 
-    res.json({ success: true, data: usuario, token });
+    res.json({ success: true, data: req.user, token });
   } catch {
     res.status(500).json({ success: false, error: 'Error interno' });
   }

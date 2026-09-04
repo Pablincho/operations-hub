@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { diffWords } from 'diff'
-import api from '@/services/api'
+import api, { getShared } from '@/services/api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -10,7 +10,7 @@ import { useNotifications } from '@/contexts/NotificationsContext'
 import { useAuth } from '@/contexts/AuthContext'
 import CycleManagement from '@/components/CycleManagement'
 import { useTour } from '@/lib/tour'
-import { CheckCircle2, ChevronDown, ChevronUp, Loader2, RotateCcw, ClipboardCheck, GitCompare, FileText, X, HelpCircle } from 'lucide-react'
+import { CheckCircle2, ChevronDown, ChevronUp, Loader2, LockKeyhole, RotateCcw, ClipboardCheck, GitCompare, FileText, X, HelpCircle } from 'lucide-react'
 
 const BLOQUE_NOMBRES = {
   B2: 'Funciones y responsabilidades',
@@ -47,11 +47,14 @@ function BloqueReview({ bloqueKey, nombre, contenido, contenidoAnterior, bloqueE
   const [expanded, setExpanded] = useState(false)
   const [showObsInput, setShowObsInput] = useState(false)
   const [obs, setObs] = useState('')
+  const [blockReturnType, setBlockReturnType] = useState('redaccion')
+  const [followupQuestion, setFollowupQuestion] = useState('')
   const [loadingA, setLoadingA] = useState(false)
   const [loadingD, setLoadingD] = useState(false)
 
   const estado = bloqueEstado?.estado || 'en_revision'
   const observacion = bloqueEstado?.observacion
+  const sugerenciaVerificador = bloqueEstado?.sugerenciaVerificador
 
   const borderColor = estado === 'aprobado' ? '#bbf7d0' : estado === 'devuelto' ? '#fed7aa' : '#e5e7eb'
   const estadoLabel = estado === 'aprobado'
@@ -69,9 +72,11 @@ function BloqueReview({ bloqueKey, nombre, contenido, contenidoAnterior, bloqueE
     if (!obs.trim()) return
     setLoadingD(true)
     try {
-      await onDevolver(bloqueKey, obs)
+      await onDevolver(bloqueKey, obs, blockReturnType, followupQuestion)
       setShowObsInput(false)
       setObs('')
+      setBlockReturnType('redaccion')
+      setFollowupQuestion('')
     } finally { setLoadingD(false) }
   }
 
@@ -91,7 +96,7 @@ function BloqueReview({ bloqueKey, nombre, contenido, contenidoAnterior, bloqueE
 
       {expanded && (
         <div className="border-t bg-muted/10">
-          <div className="px-3 py-2 text-muted-foreground">
+          <div title="Texto de solo lectura. Para solicitar cambios, usá Devolver bloque y explicá la corrección necesaria." className="px-3 py-2 text-muted-foreground cursor-not-allowed">
             {contenidoAnterior && showDiff
               ? <WordDiff oldText={contenidoAnterior} newText={contenido} />
               : <p className="text-xs leading-relaxed whitespace-pre-wrap">{contenido}</p>
@@ -103,8 +108,13 @@ function BloqueReview({ bloqueKey, nombre, contenido, contenidoAnterior, bloqueE
               <span className="font-medium">Observación: </span>{observacion}
             </div>
           )}
+          {sugerenciaVerificador && (
+            <div className="mx-3 mb-2 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-900">
+              <span className="font-medium">Sugerencia del verificador: </span>{sugerenciaVerificador}
+            </div>
+          )}
 
-          {estado !== 'aprobado' && (
+          {estado === 'en_revision' && (
             <div className="px-3 pb-3">
               {!showObsInput ? (
                 <div className="flex gap-2">
@@ -120,6 +130,15 @@ function BloqueReview({ bloqueKey, nombre, contenido, contenidoAnterior, bloqueE
                 </div>
               ) : (
                 <div className="flex flex-col gap-2">
+                  <p className="text-xs leading-relaxed text-muted-foreground">Elegí el motivo: corregí el texto si la respuesta ya contiene la información; pedí conocimiento si hace falta una nueva respuesta del operativo.</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button type="button" onClick={() => setBlockReturnType('redaccion')} className={`rounded-lg border p-2 text-left text-xs ${blockReturnType === 'redaccion' ? 'border-orange-600 bg-orange-100 text-orange-950 shadow-sm' : ''}`}>
+                      <span className="font-semibold block">Corregir redacción</span>La información existe.
+                    </button>
+                    <button type="button" onClick={() => setBlockReturnType('falta_conocimiento')} className={`rounded-lg border p-2 text-left text-xs ${blockReturnType === 'falta_conocimiento' ? 'border-orange-600 bg-orange-100 text-orange-950 shadow-sm' : ''}`}>
+                      <span className="font-semibold block">Falta conocimiento</span>Se necesita otra respuesta.
+                    </button>
+                  </div>
                   <input
                     value={obs}
                     onChange={e => setObs(e.target.value)}
@@ -128,6 +147,12 @@ function BloqueReview({ bloqueKey, nombre, contenido, contenidoAnterior, bloqueE
                     className="w-full text-xs border rounded-lg px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-orange-300"
                     autoFocus
                   />
+                  {blockReturnType === 'falta_conocimiento' && (
+                    <div>
+                      <input value={followupQuestion} onChange={event => setFollowupQuestion(event.target.value)} placeholder="Pregunta concreta para el operativo (opcional)" className="w-full text-xs border rounded-lg px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-orange-300" />
+                      <p className="mt-1 text-[11px] text-muted-foreground">Si la dejás vacía, A2 formulará la pregunta y la enviará a revisión cuando la configuración del ciclo lo requiera.</p>
+                    </div>
+                  )}
                   <div className="flex gap-2">
                     <Button size="sm" onClick={handleDevolver} disabled={loadingD || !obs.trim()}
                       className="gap-1 text-xs h-7 bg-orange-600 hover:bg-orange-700 text-white">
@@ -141,6 +166,11 @@ function BloqueReview({ bloqueKey, nombre, contenido, contenidoAnterior, bloqueE
                   </div>
                 </div>
               )}
+            </div>
+          )}
+          {estado === 'devuelto' && (
+            <div className="px-3 pb-3 text-xs text-orange-700 flex items-center gap-1.5">
+              <RotateCcw size={11} /> Decisión registrada. El operativo debe corregir y reenviar este bloque.
             </div>
           )}
         </div>
@@ -161,12 +191,31 @@ function ManualCard({ manual: initialManual, onResolved, isFirst }) {
   const [showApproveDialog, setShowApproveDialog] = useState(false)
   const [nextTopics, setNextTopics] = useState([])
   const [nextOrientation, setNextOrientation] = useState('')
-  const [startNextCycle, setStartNextCycle] = useState(false)
+  const [startNextCycle, setStartNextCycle] = useState(true)
+  const [nextConfig, setNextConfig] = useState({
+    preguntasPorEntrega: 3, frecuencia: 'diaria', intervaloDias: 1, objetivoPreguntas: '',
+    requiereAprobacionPreguntas: false, permitirResponderTodas: false, heredarOrientacion: true
+  })
 
   const color = FUNC_COLORS[manual.funcion] || '#1a3a1a'
   const bloques = Object.entries(BLOQUE_NOMBRES).filter(([k]) => manual.contenido?.[k])
   const hasPrevious = !!manual.contenidoAnterior
   const bloquesEstado = manual.bloquesEstado || {}
+
+  function abrirAprobacion() {
+    setStartNextCycle(true)
+    const cycle = manual.ciclo || {}
+    setNextConfig({
+      preguntasPorEntrega: cycle.preguntasPorEntrega ?? 3,
+      frecuencia: cycle.frecuencia || 'diaria',
+      intervaloDias: cycle.intervaloDias ?? 1,
+      objetivoPreguntas: cycle.objetivoPreguntas ?? '',
+      requiereAprobacionPreguntas: cycle.requiereAprobacionPreguntas ?? false,
+      permitirResponderTodas: cycle.permitirResponderTodas ?? false,
+      heredarOrientacion: cycle.heredarOrientacion ?? true
+    })
+    setShowApproveDialog(true)
+  }
 
   // Solo mostrar bloques que requieren revisión (en_revision o devuelto); los no modificados ya llegaron aprobados
   const bloquesRevisar = bloques.filter(([k]) => bloquesEstado[k]?.estado !== 'aprobado' || !hasPrevious)
@@ -179,16 +228,18 @@ function ManualCard({ manual: initialManual, onResolved, isFirst }) {
   async function aprobarBloque(bloque) {
     const res = await api.post(`/manual/${manual.id}/aprobar-bloque`, { bloque })
     const updated = res.data.data
-    if (updated.allAprobados) {
-      onResolved(manual.id)
-    } else {
-      setManual(prev => ({ ...prev, bloquesEstado: updated.bloquesEstado }))
-      if (updated.requiereCierre) setShowApproveDialog(true)
-    }
+    setManual(prev => ({ ...prev, bloquesEstado: updated.bloquesEstado }))
+    if (updated.requiereCierre) abrirAprobacion()
+    else if (updated.allResolved) onResolved(manual.id)
   }
 
-  async function devolverBloque(bloque, observacion) {
-    const res = await api.post(`/manual/${manual.id}/devolver-bloque`, { bloque, observacion })
+  async function devolverBloque(bloque, observacion, tipo, preguntaSeguimiento) {
+    const res = await api.post(`/manual/${manual.id}/devolver-bloque`, { bloque, observacion, tipo, preguntaSeguimiento }, tipo === 'falta_conocimiento' ? {
+      agentActivity: {
+        titulo: 'Preparando una pregunta de seguimiento',
+        descripcion: 'El agente está formulando la pregunta necesaria para completar la evidencia.'
+      }
+    } : undefined)
     const updated = res.data.data
     if (updated.allResolved) {
       onResolved(manual.id)
@@ -200,13 +251,20 @@ function ManualCard({ manual: initialManual, onResolved, isFirst }) {
   async function aprobarTodo() {
     setApprovingAll(true)
     try {
-      await api.post(`/manual/${manual.id}/aprobar`, {
+      const res = await api.post(`/manual/${manual.id}/aprobar`, {
         proximoCiclo: {
           temas: nextTopics,
           orientacion: nextOrientation,
-          iniciarAhora: startNextCycle
+          iniciarAhora: startNextCycle,
+          configuracion: nextConfig
         }
-      })
+      }, startNextCycle ? {
+        agentActivity: {
+          titulo: 'Iniciando el próximo ciclo',
+          descripcion: 'Los agentes están investigando y preparando la primera tanda de preguntas.'
+        }
+      } : undefined)
+      if (res.data.nextCyclePlanningError) alert(res.data.nextCyclePlanningError)
       setShowApproveDialog(false)
       window.dispatchEvent(new Event('manual-cycle-changed'))
       onResolved(manual.id)
@@ -223,7 +281,12 @@ function ManualCard({ manual: initialManual, onResolved, isFirst }) {
         observaciones,
         tipo: returnType,
         preguntaSeguimiento: returnType === 'falta_conocimiento' ? followupQuestion : undefined
-      })
+      }, returnType === 'falta_conocimiento' ? {
+        agentActivity: {
+          titulo: 'Preparando una pregunta de seguimiento',
+          descripcion: 'El agente está formulando la pregunta necesaria para completar la evidencia.'
+        }
+      } : undefined)
       setShowDevolverTodo(false)
       setObservaciones('')
       setFollowupQuestion('')
@@ -271,7 +334,8 @@ function ManualCard({ manual: initialManual, onResolved, isFirst }) {
                 </button>
               </div>
             )}
-            <Button size="sm" onClick={() => setShowApproveDialog(true)} disabled={approvingAll}
+            <Button size="sm" onClick={abrirAprobacion} disabled={approvingAll || devueltos > 0}
+              title={devueltos > 0 ? 'Hay bloques devueltos. El operativo debe corregirlos y reenviar el manual antes de aprobar.' : undefined}
               className="gap-1 text-xs h-7 bg-green-600 hover:bg-green-700 text-white">
               {approvingAll ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
               Aprobar todo
@@ -283,13 +347,10 @@ function ManualCard({ manual: initialManual, onResolved, isFirst }) {
           </div>
         </div>
 
-        {/* Nota del ocupante */}
-        {manual.notaEnvio && (
-          <div className="mb-3 bg-muted/40 rounded-lg px-3 py-2">
-            <p className="text-xs font-medium text-muted-foreground mb-0.5">Nota del ocupante:</p>
-            <p className="text-xs italic">"{manual.notaEnvio}"</p>
-          </div>
-        )}
+        <div className="mb-3 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 text-blue-900">
+          <LockKeyhole size={14} className="mt-0.5 shrink-0" />
+          <p className="text-xs"><strong>Manual de solo lectura.</strong> Revisá el contenido y usá Aprobar o Devolver para mantener registrada cada corrección.</p>
+        </div>
 
         {/* Bloques con revisión individual: solo los modificados */}
         {autoAprobados > 0 && (
@@ -317,22 +378,39 @@ function ManualCard({ manual: initialManual, onResolved, isFirst }) {
       </CardContent>
 
       <Dialog open={showApproveDialog} onOpenChange={setShowApproveDialog}>
-        <DialogContent aria-describedby={undefined} className="max-w-2xl">
-          <DialogHeader><DialogTitle>Aprobar manual y orientar lo próximo</DialogTitle></DialogHeader>
-          <p className="text-sm text-muted-foreground">Antes de cerrar este ciclo, indicá en qué temas querés hacer más hincapié en las próximas preguntas. Podés dejar todo vacío si no hay un foco especial.</p>
-          <div className="grid grid-cols-2 gap-2 max-h-48 overflow-auto">
-            {NEXT_CYCLE_TOPICS.map(topic => <label key={topic} className="flex items-start gap-2 rounded-lg border p-2 text-xs cursor-pointer">
-              <input type="checkbox" className="mt-0.5" checked={nextTopics.includes(topic)} onChange={() => setNextTopics(prev => prev.includes(topic) ? prev.filter(item => item !== topic) : [...prev, topic])} />
+        <DialogContent aria-describedby={undefined} className="max-w-3xl">
+          <DialogHeader><DialogTitle>Aprobar manual y orientar lo que viene</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">Antes de cerrar este ciclo, indicá en qué tema o temas querés hacer más hincapié en las próximas preguntas. Podés dejar todo vacío si no hay un foco especial.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {NEXT_CYCLE_TOPICS.map(topic => <label key={topic} className="flex items-center gap-2 rounded-lg border px-2.5 py-2 text-xs cursor-pointer">
+              <input type="checkbox" checked={nextTopics.includes(topic)} onChange={() => setNextTopics(prev => prev.includes(topic) ? prev.filter(item => item !== topic) : [...prev, topic])} />
               {topic}
             </label>)}
           </div>
           <Textarea value={nextOrientation} onChange={event => setNextOrientation(event.target.value)} rows={3} placeholder="Orientación libre para las próximas preguntas..." />
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={startNextCycle} onChange={event => setStartNextCycle(event.target.checked)} />Iniciar el próximo ciclo ahora</label>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowApproveDialog(false)}>Cancelar</Button>
-            <Button onClick={aprobarTodo} disabled={approvingAll} className="gap-1 bg-green-600 hover:bg-green-700 text-white">
-              {approvingAll ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} Aprobar y cerrar ciclo
-            </Button>
+          <div className="border-t pt-4">
+            <p className="text-sm font-semibold">Configuración del próximo ciclo</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">Estos valores se aplicarán antes de que los agentes preparen la primera tanda.</p>
+            <div className="grid sm:grid-cols-4 gap-3 mt-3">
+              <label title="Cantidad máxima de preguntas que recibe el operativo en cada check-in." className="text-xs cursor-help">Preguntas por entrega<input type="number" min="1" max="10" value={nextConfig.preguntasPorEntrega} onChange={event => setNextConfig(prev => ({ ...prev, preguntasPorEntrega: event.target.value }))} className="mt-1 h-9 w-full rounded-md border bg-background px-2 text-sm" /></label>
+              <label title="Define la espera mínima entre check-ins." className="text-xs cursor-help">Frecuencia<select value={nextConfig.frecuencia} onChange={event => setNextConfig(prev => ({ ...prev, frecuencia: event.target.value }))} className="mt-1 h-9 w-full rounded-md border bg-background px-2 text-sm"><option value="diaria">Diaria</option><option value="semanal">Semanal</option><option value="manual">Sin espera mínima</option></select></label>
+              <label title="Multiplica la frecuencia: por ejemplo, 2 con frecuencia diaria significa cada 2 días." className={`text-xs ${nextConfig.frecuencia === 'manual' ? 'cursor-not-allowed' : 'cursor-help'}`}>Cada cuántos períodos<input type="number" min="1" max="30" value={nextConfig.intervaloDias} disabled={nextConfig.frecuencia === 'manual'} onChange={event => setNextConfig(prev => ({ ...prev, intervaloDias: event.target.value }))} className="mt-1 h-9 w-full rounded-md border bg-background px-2 text-sm disabled:cursor-not-allowed" /></label>
+              <label title="Tope total de preguntas que los agentes podrán preparar en este ciclo." className="text-xs cursor-help">Límite de preguntas<input type="number" min="1" placeholder="Sin límite" value={nextConfig.objetivoPreguntas} onChange={event => setNextConfig(prev => ({ ...prev, objetivoPreguntas: event.target.value }))} className="mt-1 h-9 w-full rounded-md border bg-background px-2 text-sm" /></label>
+            </div>
+            <div className="grid sm:grid-cols-3 gap-2 mt-3 text-sm">
+              <label title="Las preguntas propuestas quedarán esperando tu aprobación antes de enviarse al operativo." className="flex items-center gap-2 cursor-help whitespace-nowrap"><input type="checkbox" checked={nextConfig.requiereAprobacionPreguntas} onChange={event => setNextConfig(prev => ({ ...prev, requiereAprobacionPreguntas: event.target.checked }))} />Revisar antes de enviar</label>
+              <label title="El operativo podrá elegir responder todas las preguntas aprobadas pendientes, además de la tanda habitual." className="flex items-center gap-2 cursor-help whitespace-nowrap"><input type="checkbox" checked={nextConfig.permitirResponderTodas} onChange={event => setNextConfig(prev => ({ ...prev, permitirResponderTodas: event.target.checked }))} />Permitir responder todas</label>
+              <label title="Conserva estos temas y esta orientación como base del ciclo posterior." className="flex items-center gap-2 cursor-help whitespace-nowrap"><input type="checkbox" checked={nextConfig.heredarOrientacion} onChange={event => setNextConfig(prev => ({ ...prev, heredarOrientacion: event.target.checked }))} />Heredar orientación</label>
+            </div>
+          </div>
+          <DialogFooter className="sm:justify-between">
+            <label title="Crea el ciclo siguiente y ejecuta ahora la investigación y la primera tanda de preguntas con la configuración elegida arriba." className="flex items-center gap-2 text-sm cursor-help"><input type="checkbox" checked={startNextCycle} onChange={event => setStartNextCycle(event.target.checked)} />Crear y preparar la primera tanda ahora</label>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setShowApproveDialog(false)}>Cancelar</Button>
+              <Button onClick={aprobarTodo} disabled={approvingAll} className="gap-1 bg-green-600 hover:bg-green-700 text-white">
+                {approvingAll ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} {startNextCycle ? 'Aprobar e iniciar ciclo' : 'Aprobar y cerrar ciclo'}
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -342,7 +420,7 @@ function ManualCard({ manual: initialManual, onResolved, isFirst }) {
         <DialogContent aria-describedby={undefined}>
           <DialogHeader><DialogTitle>Devolver manual con observaciones</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">
-            El manual volverá a borrador. El ocupante recibirá tus observaciones y podrá corregir antes de reenviar.
+            El manual volverá a borrador. El operativo recibirá tus observaciones y podrá corregir antes de reenviar.
           </p>
           <div className="grid grid-cols-2 gap-2">
             <button onClick={() => setReturnType('redaccion')} className={`rounded-lg border p-3 text-left text-xs ${returnType === 'redaccion' ? 'border-orange-500 bg-orange-50' : ''}`}>
@@ -351,18 +429,18 @@ function ManualCard({ manual: initialManual, onResolved, isFirst }) {
             </button>
             <button onClick={() => setReturnType('falta_conocimiento')} className={`rounded-lg border p-3 text-left text-xs ${returnType === 'falta_conocimiento' ? 'border-orange-500 bg-orange-50' : ''}`}>
               <span className="font-semibold block">Falta conocimiento</span>
-              Hay que volver a preguntarle al ocupante.
+              Hay que volver a preguntarle al operativo.
             </button>
           </div>
           <Textarea placeholder="Describí qué debe corregir o mejorar..."
             value={observaciones} onChange={e => setObservaciones(e.target.value)} rows={4} autoFocus />
           {returnType === 'falta_conocimiento' && (
-            <Textarea placeholder="Escribí la pregunta concreta que debe responder el ocupante..."
+            <Textarea placeholder="Pregunta concreta para el operativo (opcional)"
               value={followupQuestion} onChange={e => setFollowupQuestion(e.target.value)} rows={2} />
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => { setShowDevolverTodo(false); setObservaciones(''); setFollowupQuestion(''); setReturnType('redaccion') }}>Cancelar</Button>
-            <Button onClick={devolverTodo} disabled={returningAll || !observaciones.trim() || (returnType === 'falta_conocimiento' && !followupQuestion.trim())}
+            <Button onClick={devolverTodo} disabled={returningAll || !observaciones.trim()}
               className="bg-orange-600 hover:bg-orange-700 text-white gap-1">
               {returningAll ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />}
               Devolver
@@ -386,8 +464,8 @@ export default function Revisiones() {
   async function load() {
     setLoading(true)
     try {
-      const res = await api.get('/manual/pendientes')
-      setManuales(res.data.data || [])
+      const pendientes = await getShared('/manual/pendientes')
+      setManuales(pendientes.data || [])
     } catch { /* ignore */ }
     finally { setLoading(false) }
   }
@@ -412,7 +490,7 @@ export default function Revisiones() {
         element: '[data-tour="revisiones-acciones"]',
         popover: {
           title: 'Aprobar o devolver todo',
-          description: '"Aprobar todo" deja el manual como "Vigente" de inmediato. "Devolver" abre un cuadro para escribir una observación general: el manual vuelve a "Borrador", el ocupante la ve en su pantalla, corrige y te lo vuelve a enviar. El botón "Cambios" te muestra qué se modificó respecto a la versión anterior aprobada, resaltado en rojo/verde.',
+          description: '"Aprobar todo" deja el manual como "Vigente" de inmediato. "Devolver" abre un cuadro para escribir una observación general: el manual vuelve a "Borrador", el operativo la ve en su pantalla, corrige y te lo vuelve a enviar. El botón "Cambios" te muestra qué se modificó respecto a la versión anterior aprobada, resaltado en rojo/verde.',
           side: 'bottom',
           align: 'end'
         }

@@ -2,13 +2,13 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { useNotifications } from '@/contexts/NotificationsContext'
-import api from '@/services/api'
+import api, { getShared } from '@/services/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import CheckinBlock from '@/components/CheckinBlock'
 import { FUNC_ICONS, FUNC_COLORS } from '@/lib/utils'
 import { useTour } from '@/lib/tour'
-import { Bot, BookText, HelpCircle } from 'lucide-react'
+import { Bot, BookText, HelpCircle, Loader2 } from 'lucide-react'
 
 export default function Dashboard() {
   const { user, refreshUser } = useAuth()
@@ -20,7 +20,7 @@ export default function Dashboard() {
   const [dailyCounts, setDailyCounts] = useState({})
   const [primaryStatusMap, setPrimaryStatusMap] = useState({})
   const [cycleStatusMap, setCycleStatusMap] = useState({})
-  const [entryTotals, setEntryTotals] = useState({})
+  const [checkinAvailabilityMap, setCheckinAvailabilityMap] = useState({})
   const [loading, setLoading] = useState(true)
 
   const funciones = user?.funciones || []
@@ -30,18 +30,20 @@ export default function Dashboard() {
 
   async function load() {
     try {
-      await refreshUser()
-      const [progRes, checkinRes] = await Promise.all([
+      // refreshUser no alimenta a las otras dos consultas, así que va en paralelo:
+      // encadenarlo agregaba un viaje completo antes de empezar a pedir los datos.
+      const [, progRes, checkin] = await Promise.all([
+        refreshUser(),
         isAdmin ? api.get('/checkin/progreso') : Promise.resolve(null),
-        api.get('/checkin/hoy')
+        getShared('/checkin/hoy')
       ])
-      setProgress(isAdmin ? progRes.data.data : (checkinRes.data.entryCounts || {}))
-      setTodaySessions(checkinRes.data.data || [])
-      setOnboardingStatus(checkinRes.data.onboardingStatus || {})
-      setDailyCounts(checkinRes.data.dailyCounts || {})
-      setPrimaryStatusMap(checkinRes.data.primaryStatusMap || {})
-      setCycleStatusMap(checkinRes.data.cycleStatusMap || {})
-      setEntryTotals(checkinRes.data.entryTotals || {})
+      setProgress(isAdmin ? progRes.data.data : (checkin.entryCounts || {}))
+      setTodaySessions(checkin.data || [])
+      setOnboardingStatus(checkin.onboardingStatus || {})
+      setDailyCounts(checkin.dailyCounts || {})
+      setPrimaryStatusMap(checkin.primaryStatusMap || {})
+      setCycleStatusMap(checkin.cycleStatusMap || {})
+      setCheckinAvailabilityMap(checkin.checkinAvailabilityMap || {})
     } catch {
       // ignore
     } finally {
@@ -53,15 +55,15 @@ export default function Dashboard() {
     return todaySessions.find(s => s.funcion === fn) || null
   }
 
-  // El check-in se responde únicamente desde acá (Inicio). Una función queda pendiente
-  // si el usuario es ocupante principal, el supervisor mantiene abierto el relevamiento
-  // y todavía no completó la sesión de hoy.
+  // El check-in puede responderse desde Inicio o Mi Manual. Una función queda pendiente
+  // si el usuario es operativo principal y el backend confirma una tanda disponible.
   function checkinPendiente(fn) {
     if (primaryStatusMap[fn] === false) return false
     const cycle = cycleStatusMap[fn]
     if (!cycle || cycle.estado === 'completado') return false
-    if (cycle.estado !== 'relevamiento' && !(cycle.esLegacy && cycle.estado === 'configuracion')) return false
-    return !sessionForFuncion(fn)?.completado
+    const session = sessionForFuncion(fn)
+    if (session && !session.completado) return true
+    return checkinAvailabilityMap[fn]?.estado === 'disponible'
   }
 
   function handleCheckinComplete() {
@@ -143,7 +145,13 @@ export default function Dashboard() {
         </button>
       </div>
 
-      {/* Check-in del día: se responde únicamente desde acá */}
+      {loading && (
+        <div className="mb-6 flex items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+          <Loader2 size={15} className="animate-spin" /> Cargando tus check-ins y progreso...
+        </div>
+      )}
+
+      {/* Check-in del día */}
       {!loading && funcionesPendientes.length > 0 && (
         <div className="mb-6" data-tour="checkin">
           {funcionesPendientes.map(fn => (
@@ -157,6 +165,8 @@ export default function Dashboard() {
               cycle={cycleStatusMap[fn]}
               onComplete={handleCheckinComplete}
               isPrimary={primaryStatusMap[fn] ?? true}
+              preguntasPendientes={checkinAvailabilityMap[fn]?.preguntasPendientes || 0}
+              permiteResponderTodas={checkinAvailabilityMap[fn]?.permiteResponderTodas ?? false}
             />
           ))}
         </div>
@@ -207,8 +217,7 @@ export default function Dashboard() {
                     <span className="font-medium">{FUNC_ICONS[fn]} {fn}</span>
                     <span className="text-muted-foreground">
                       {cycleStatusMap[fn] ? `Ciclo ${cycleStatusMap[fn].numero} · ` : ''}
-                      {count}{target ? `/${target} · ${pct}%` : ' respuestas'}
-                      {!isAdmin && entryTotals[fn] > count ? ` · ${entryTotals[fn]} en total` : ''}
+                      {target ? `${count}/${target} respuestas · ${pct}%` : `${count} respuestas`}
                     </span>
                   </div>
                   {target && <Progress value={pct} indicatorClassName="transition-all" style={{ '--progress-color': FUNC_COLORS[fn] }} />}

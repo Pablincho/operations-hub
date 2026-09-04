@@ -30,3 +30,10 @@ Frontend: `npm run lint`, `npm run build` y `npm audit --omit=dev`.
 - Las entradas sensibles se cifran en PostgreSQL y nunca se envían al proveedor de IA.
 - El borrado de usuarios es lógico: se desactivan y se conserva su conocimiento e historial.
 - Los cambios de esquema se realizan mediante migraciones; `db.sync()` no reemplaza ese proceso.
+
+## Retención de datos
+
+- Las respuestas documentadas y el manual vigente se conservan como memoria institucional.
+- Las versiones obsoletas de manuales se eliminan a los 24 meses.
+- Las trazas detalladas de agentes (prompts, borradores, salidas y errores) se compactan a los 90 días; se conservan solo sus metadatos de auditoría durante 24 meses.
+- La limpieza se ejecuta diariamente junto con el planificador de recordatorios.

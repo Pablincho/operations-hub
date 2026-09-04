@@ -1,17 +1,66 @@
 import cron from 'node-cron';
 import { Op } from 'sequelize';
-import { Usuario, CheckinSession, Organizacion, ManualCycle } from './models/index.js';
+import { Usuario, CheckinSession, Organizacion, Manual, ManualAgentRun, ManualCycle } from './models/index.js';
 import { sendRecordatorioEmail, sendRecordatorioSupervisorEmail, sendCicloPendienteEmail } from './services/emailService.js';
 
 const DIAS_USUARIO = 5;
 const DIAS_SUPERVISOR = 10;
 const DIAS_CICLO_CERRADO = 10;
+const DIAS_TRAZA_DETALLADA_AGENTES = 90;
+const DIAS_METADATOS_AGENTES = 730;
+const DIAS_VERSIONES_OBSOLETAS = 730;
 
 function daysSince(value) {
   return Math.floor((Date.now() - new Date(value).getTime()) / 86400000);
 }
 
+// Las respuestas y el manual vigente son conocimiento operativo: se conservan. Las
+// trazas detalladas contienen prompts, borradores y observaciones, por lo que se
+// compactan antes. Conservamos sus metadatos (fase, modelo, estado y duración) para
+// auditar desempeño durante 24 meses sin retener contenido de trabajo innecesario.
+async function applyRetentionPolicy(org, now) {
+  const detailBefore = new Date(now - DIAS_TRAZA_DETALLADA_AGENTES * 86400000);
+  const metadataBefore = new Date(now - DIAS_METADATOS_AGENTES * 86400000);
+  const obsoleteBefore = new Date(now - DIAS_VERSIONES_OBSOLETAS * 86400000);
+
+  const detailedRuns = await ManualAgentRun.findAll({
+    where: {
+      organizacionId: org.id,
+      createdAt: { [Op.lt]: detailBefore },
+      [Op.or]: [
+        { entrada: { [Op.ne]: {} } },
+        { salida: { [Op.ne]: {} } },
+        { error: { [Op.ne]: null } }
+      ]
+    },
+    attributes: ['id']
+  });
+  if (detailedRuns.length) {
+    await ManualAgentRun.update(
+      { entrada: {}, salida: {}, error: null },
+      { where: { id: { [Op.in]: detailedRuns.map(run => run.id) } } }
+    );
+  }
+
+  const [deletedRuns, deletedManuals] = await Promise.all([
+    ManualAgentRun.destroy({
+      where: { organizacionId: org.id, createdAt: { [Op.lt]: metadataBefore } }
+    }),
+    Manual.destroy({
+      where: {
+        organizacionId: org.id,
+        estado: 'obsoleto',
+        updatedAt: { [Op.lt]: obsoleteBefore }
+      }
+    })
+  ]);
+  if (detailedRuns.length || deletedRuns || deletedManuals) {
+    console.log(`[Retention] ${org.slug}: ${detailedRuns.length} trazas compactadas, ${deletedRuns} metadatos y ${deletedManuals} versiones obsoletas eliminadas.`);
+  }
+}
+
 async function checkOrganization(org, now) {
+  await applyRetentionPolicy(org, now);
   const previousRun = org.config?.schedulerLastRunAt
     ? new Date(org.config.schedulerLastRunAt).getTime()
     : now - 86400000;

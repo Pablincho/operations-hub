@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import { Sequelize, Op } from 'sequelize';
 import { verifyJWT, requireAdmin } from '../auth.js';
-import { db, CheckinSession, KnowledgeEntry, ManualCycle, ManualQuestion } from '../models/index.js';
+import { db, CheckinSession, KnowledgeEntry, Manual, ManualCycle, ManualQuestion } from '../models/index.js';
 import { generarPreguntas, INITIAL_QUESTIONS } from '../services/checkinService.js';
 import { planificarPreguntasCiclo, recuperarCicloAtascado } from '../services/manualAgentService.js';
-import { userIsPrimaryOccupant } from '../services/positionService.js';
+import { generarYEnviarRevisionAutomatica } from '../services/autoReviewService.js';
+import { userIsPrimaryOccupant, getPrimaryOccupantsByFuncion } from '../services/positionService.js';
 import { detectSensitive } from '../utils/detectSensitive.js';
 import { cycleAllowsCheckin, nextCheckinDate } from '../manualCyclePolicy.js';
 
@@ -29,25 +30,60 @@ router.get('/hoy', async (req, res) => {
   try {
     const today = todayBA();
     const userFunciones = req.user.funciones || [];
-    const currentCycles = await latestCyclesByFunction(req.user.organizacionId, userFunciones);
+    // Los ocupantes principales se resuelven en bloque: preguntarlos de a una función
+    // repetía la misma consulta de organización y de usuarios una vez por función.
+    const [currentCycles, principales] = await Promise.all([
+      latestCyclesByFunction(req.user.organizacionId, userFunciones),
+      getPrimaryOccupantsByFuncion(req.user.organizacionId, userFunciones)
+    ]);
     const cycleIds = Object.values(currentCycles).map(cycle => cycle.id);
-    const primaryStatusMap = {};
-    await Promise.all(userFunciones.map(async funcion => {
-      primaryStatusMap[funcion] = await userIsPrimaryOccupant(req.user.id, req.user.organizacionId, funcion);
+    const primaryStatusMap = Object.fromEntries(userFunciones.map(funcion => {
+      const principal = principales.get(funcion);
+      // Sin ocupante inferible cualquiera con la función puede inaugurar el historial.
+      return [funcion, !principal || principal.id === req.user.id];
     }));
 
-    const [todaySessions, allCompleted, entryRows] = await Promise.all([
+    const [todaySessions, completedRows, entryRows, questionRows] = await Promise.all([
       cycleIds.length
-        ? CheckinSession.findAll({ where: { usuarioId: req.user.id, fecha: today, cicloId: { [Op.in]: cycleIds } } })
+        ? CheckinSession.findAll({ where: { usuarioId: req.user.id, fecha: today, completado: false, cicloId: { [Op.in]: cycleIds } } })
         : [],
+      // Los completados solo se usan para contar y saber la última fecha, así que se
+      // agregan en SQL: traerlos enteros arrastraba todo el JSONB de preguntas y
+      // respuestas, que crece sin techo a medida que se usa el sistema.
       cycleIds.length
-        ? CheckinSession.findAll({ where: { usuarioId: req.user.id, completado: true, cicloId: { [Op.in]: cycleIds } } })
+        ? db.query(
+          `SELECT "cicloId", funcion,
+                  COUNT(*) FILTER (WHERE es_onboarding) AS onboarding,
+                  COUNT(*) FILTER (WHERE NOT es_onboarding) AS tandas,
+                  MAX(fecha)::text AS ultima_fecha
+             FROM (
+               SELECT s."cicloId", s.funcion, s.fecha,
+                      jsonb_array_length(COALESCE(s.preguntas, '[]'::jsonb)) = 10
+                      AND NOT EXISTS (
+                        SELECT 1 FROM jsonb_array_elements(COALESCE(s.preguntas, '[]'::jsonb)) AS p
+                         WHERE COALESCE(p->>'questionId', '') <> ''
+                      ) AS es_onboarding
+                 FROM "CheckinSessions" s
+                WHERE s."usuarioId" = :usuarioId
+                  AND s.completado = true
+                  AND s."cicloId" IN (:cycleIds)
+             ) resumen
+            GROUP BY "cicloId", funcion`,
+          { replacements: { usuarioId: req.user.id, cycleIds }, type: Sequelize.QueryTypes.SELECT }
+        )
         : [],
       cycleIds.length
         ? KnowledgeEntry.findAll({
           where: { organizacionId: req.user.organizacionId, categoria: 'checkin', cicloId: { [Op.in]: cycleIds } },
           attributes: ['funcion', [Sequelize.fn('COUNT', Sequelize.col('id')), 'count']],
           group: ['funcion'], raw: true
+        })
+        : [],
+      cycleIds.length
+        ? ManualQuestion.findAll({
+          where: { cicloId: { [Op.in]: cycleIds } },
+          attributes: ['cicloId', 'estado', [Sequelize.fn('COUNT', Sequelize.col('id')), 'count']],
+          group: ['cicloId', 'estado'], raw: true
         })
         : []
     ]);
@@ -56,11 +92,11 @@ router.get('/hoy', async (req, res) => {
     // siempre traen questionId, así que una tanda de 10 preguntas no se confunde con él.
     const onboardingStatus = {};
     const dailyCounts = {};
-    for (const session of allCompleted) {
-      const esOnboarding = session.preguntas.length === 10 &&
-        !session.preguntas.some(pregunta => pregunta.questionId);
-      if (esOnboarding) onboardingStatus[session.funcion] = true;
-      else dailyCounts[session.funcion] = (dailyCounts[session.funcion] || 0) + 1;
+    const ultimaFechaPorCiclo = {};
+    for (const row of completedRows) {
+      if (Number(row.onboarding) > 0) onboardingStatus[row.funcion] = true;
+      dailyCounts[row.funcion] = (dailyCounts[row.funcion] || 0) + Number(row.tandas);
+      ultimaFechaPorCiclo[row.cicloId] = row.ultima_fecha;
     }
     const entryCounts = Object.fromEntries(entryRows.map(row => [row.funcion, Number(row.count)]));
     // Además del conteo del ciclo actual se envía el acumulado histórico: al abrir un ciclo
@@ -74,6 +110,12 @@ router.get('/hoy', async (req, res) => {
       : [];
     const entryTotals = Object.fromEntries(totalRows.map(row => [row.funcion, Number(row.count)]));
     const cycleStatusMap = {};
+    const questionsByCycle = {};
+    for (const row of questionRows) {
+      questionsByCycle[row.cicloId] ||= {};
+      questionsByCycle[row.cicloId][row.estado] = Number(row.count);
+    }
+    const checkinAvailabilityMap = {};
     for (const [funcion, cycle] of Object.entries(currentCycles)) {
       cycleStatusMap[funcion] = {
         id: cycle.id,
@@ -85,26 +127,47 @@ router.get('/hoy', async (req, res) => {
         intervaloDias: cycle.intervaloDias,
         esLegacy: cycle.esLegacy
       };
+      const todaySession = todaySessions.find(session => session.cicloId === cycle.id);
+      const nextDate = nextCheckinDate(ultimaFechaPorCiclo[cycle.id], cycle.frecuencia, cycle.intervaloDias);
+      const counts = questionsByCycle[cycle.id] || {};
+      const totalQuestions = Object.values(counts).reduce((total, count) => total + count, 0);
+      const limitReached = cycle.objetivoPreguntas !== null && totalQuestions >= cycle.objetivoPreguntas;
+      const hasAgentPlan = !cycle.esLegacy || Object.values(counts).some(Boolean);
+      let estado = 'no_disponible';
+      if (todaySession && !todaySession.completado) estado = 'disponible';
+      else if (!cycleAllowsCheckin(cycle)) estado = 'no_disponible';
+      else if (nextDate && today < nextDate) estado = 'esperando_frecuencia';
+      else if (counts.aprobada > 0 || (!hasAgentPlan && !limitReached) || (!cycle.requiereAprobacionPreguntas && !limitReached)) estado = 'disponible';
+      else if (counts.propuesta > 0) estado = 'esperando_aprobacion';
+      else if (limitReached) estado = 'limite_alcanzado';
+      else estado = 'sin_preguntas';
+      checkinAvailabilityMap[funcion] = {
+        estado,
+        proximaFecha: nextDate || null,
+        preguntasPendientes: counts.aprobada || 0,
+        permiteResponderTodas: cycle.permitirResponderTodas,
+        limiteAlcanzado: limitReached
+      };
     }
-    res.json({ success: true, data: todaySessions, onboardingStatus, dailyCounts, entryCounts, entryTotals, primaryStatusMap, cycleStatusMap });
+    res.json({ success: true, data: todaySessions, onboardingStatus, dailyCounts, entryCounts, entryTotals, primaryStatusMap, cycleStatusMap, checkinAvailabilityMap });
   } catch (error) {
     console.error('[checkin] Error cargando estado:', error.message);
     res.status(500).json({ success: false, error: 'Error interno' });
   }
 });
 
-async function takeAgentQuestions(cycle) {
+async function takeAgentQuestions(cycle, allPending = false) {
   let questions = await ManualQuestion.findAll({
     where: { cicloId: cycle.id, estado: 'aprobada' },
     order: [['orden', 'ASC'], ['createdAt', 'ASC']],
-    limit: cycle.preguntasPorEntrega
+    ...(allPending ? {} : { limit: cycle.preguntasPorEntrega })
   });
   if (!questions.length && !cycle.requiereAprobacionPreguntas) {
     await planificarPreguntasCiclo(cycle, cycle.supervisorId);
     questions = await ManualQuestion.findAll({
       where: { cicloId: cycle.id, estado: 'aprobada' },
       order: [['orden', 'ASC'], ['createdAt', 'ASC']],
-      limit: cycle.preguntasPorEntrega
+      ...(allPending ? {} : { limit: cycle.preguntasPorEntrega })
     });
   }
   return questions;
@@ -113,12 +176,13 @@ async function takeAgentQuestions(cycle) {
 router.post('/iniciar', async (req, res) => {
   try {
     const funcion = String(req.body.funcion || '').trim();
+    const allPending = req.body.todasPendientes === true;
     if (!funcion) return res.status(400).json({ success: false, error: 'funcion requerida' });
     if (!(req.user.funciones || []).includes(funcion)) {
       return res.status(403).json({ success: false, error: 'No tenés esa función asignada' });
     }
     if (!(await userIsPrimaryOccupant(req.user.id, req.user.organizacionId, funcion))) {
-      return res.status(403).json({ success: false, error: 'Solo el ocupante principal puede completar el check-in de este puesto.', isReadOnly: true });
+      return res.status(403).json({ success: false, error: 'Solo el operativo principal puede completar el check-in de este puesto.', isReadOnly: true });
     }
 
     const cycle = await ManualCycle.findOne({
@@ -136,10 +200,16 @@ router.post('/iniciar', async (req, res) => {
     if (!cycleAllowsCheckin(cycle)) {
       return res.status(409).json({ success: false, error: 'El ciclo no está habilitado para responder preguntas.' });
     }
+    if (allPending && !cycle.permitirResponderTodas) {
+      return res.status(403).json({
+        success: false,
+        error: 'El supervisor configuró este ciclo para responder solo la cantidad de preguntas por entrega.'
+      });
+    }
 
     const today = todayBA();
     const existing = await CheckinSession.findOne({
-      where: { usuarioId: req.user.id, funcion, fecha: today, cicloId: cycle.id }
+      where: { usuarioId: req.user.id, funcion, cicloId: cycle.id, completado: false }
     });
     if (existing) return res.json({ success: true, data: existing });
 
@@ -154,6 +224,17 @@ router.post('/iniciar', async (req, res) => {
       });
     }
 
+    const [totalQuestions, approvedQuestions] = await Promise.all([
+      ManualQuestion.count({ where: { cicloId: cycle.id } }),
+      ManualQuestion.count({ where: { cicloId: cycle.id, estado: 'aprobada' } })
+    ]);
+    if (cycle.objetivoPreguntas !== null && totalQuestions >= cycle.objetivoPreguntas && !approvedQuestions) {
+      return res.status(409).json({
+        success: false,
+        error: 'Ya se alcanzó el límite de preguntas de este ciclo. El supervisor debe ampliar el límite o finalizar el relevamiento.'
+      });
+    }
+
     const previousSessions = await CheckinSession.findAll({
       where: { usuarioId: req.user.id, funcion, cicloId: cycle.id, completado: true }, order: [['fecha', 'ASC']]
     });
@@ -161,7 +242,7 @@ router.post('/iniciar', async (req, res) => {
     let preguntas;
     const hasAgentPlan = !cycle.esLegacy || await ManualQuestion.count({ where: { cicloId: cycle.id } }) > 0;
     if (hasAgentPlan) {
-      queuedQuestions = await takeAgentQuestions(cycle);
+      queuedQuestions = await takeAgentQuestions(cycle, allPending);
       if (!queuedQuestions.length) {
         const proposed = await ManualQuestion.count({ where: { cicloId: cycle.id, estado: 'propuesta' } });
         return res.status(409).json({
@@ -221,7 +302,7 @@ router.post('/iniciar', async (req, res) => {
   } catch (error) {
     if (error.name === 'SequelizeUniqueConstraintError') {
       const existing = await CheckinSession.findOne({
-        where: { usuarioId: req.user.id, funcion: req.body.funcion, fecha: todayBA() }, order: [['createdAt', 'DESC']]
+        where: { usuarioId: req.user.id, funcion: req.body.funcion, completado: false }, order: [['createdAt', 'DESC']]
       });
       if (existing) return res.json({ success: true, data: existing });
     }
@@ -254,6 +335,7 @@ router.post('/:id/responder', async (req, res) => {
       return res.status(503).json({ success: false, error: 'No se pudo verificar el contenido en este momento. Intentá guardar de nuevo en unos segundos.' });
     }
 
+    let cicloListoParaRevision = null;
     await db.transaction(async transaction => {
       const lockedSession = await CheckinSession.findOne({
         where: { id: session.id, usuarioId: req.user.id }, transaction, lock: transaction.LOCK.UPDATE
@@ -288,9 +370,52 @@ router.post('/:id/responder', async (req, res) => {
           where: { cicloId: lockedSession.cicloId, id: { [Op.in]: unansweredIds } }, transaction
         });
       }
+      const cycle = await ManualCycle.findByPk(lockedSession.cicloId, { transaction, lock: transaction.LOCK.UPDATE });
+      if (cycle) {
+        const [totalQuestions, pendingQuestions, seguimientosRespondidos] = await Promise.all([
+          ManualQuestion.count({ where: { cicloId: cycle.id }, transaction }),
+          ManualQuestion.count({
+            where: { cicloId: cycle.id, estado: { [Op.in]: ['propuesta', 'aprobada', 'preguntada'] } },
+            transaction
+          }),
+          answeredIds.length
+            ? ManualQuestion.count({
+                where: {
+                  cicloId: cycle.id,
+                  id: { [Op.in]: answeredIds },
+                  origen: { [Op.in]: ['agente_seguimiento', 'supervisor_revision'] }
+                },
+                transaction
+              })
+            : 0
+        ]);
+        const respondioSeguimiento = seguimientosRespondidos > 0;
+        const limiteAlcanzado = cycle.objetivoPreguntas !== null && totalQuestions >= cycle.objetivoPreguntas;
+        if (pendingQuestions === 0 && cycle.estado === 'relevamiento' && (limiteAlcanzado || respondioSeguimiento)) {
+          // El seguimiento reemplaza la evidencia del bloque devuelto. Si el manual
+          // anterior seguía en revisión, lo liberamos justo antes de generar la nueva
+          // versión para que el proceso automático pueda recrearlo en revisión.
+          if (respondioSeguimiento) {
+            await Manual.update({ estado: 'borrador' }, {
+              where: { cicloId: cycle.id, estado: 'en_revision' }, transaction
+            });
+          }
+          await cycle.update({ estado: 'listo_para_generar', relevamientoCerradoEn: new Date() }, { transaction });
+          cicloListoParaRevision = cycle.id;
+        }
+      }
     });
     await session.reload();
-    res.json({ success: true, data: session });
+    let autoReview = null;
+    if (cicloListoParaRevision) {
+      try {
+        autoReview = await generarYEnviarRevisionAutomatica(cicloListoParaRevision);
+      } catch (autoReviewError) {
+        console.error('[checkin] No se pudo enviar el manual automáticamente a revisión:', autoReviewError.message);
+        autoReview = { estado: 'pendiente', error: 'Las respuestas se guardaron, pero no se pudo generar el manual automáticamente.' };
+      }
+    }
+    res.json({ success: true, data: session, autoReview });
   } catch (error) {
     console.error('[checkin] Error guardando respuestas:', error.message);
     res.status(error.status || 500).json({ success: false, error: error.status ? error.message : 'Error interno' });

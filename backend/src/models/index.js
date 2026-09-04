@@ -28,7 +28,17 @@ const sslConfig = process.env.DATABASE_URL?.includes('railway') ||
 export const db = new Sequelize(process.env.DATABASE_URL, {
   dialect: 'postgres',
   logging: false,
-  dialectOptions: sslConfig
+  dialectOptions: {
+    ...sslConfig,
+    // Sin keepAlive el proxy corta las conexiones ociosas por su cuenta y la siguiente
+    // consulta vuelve a pagar el handshake completo.
+    keepAlive: true
+  },
+  // Abrir una conexión nueva cuesta cerca de 1,8 s de handshake TLS. Con los valores
+  // por defecto (min: 0, idle: 10 s) el pool se vaciaba tras diez segundos sin tráfico,
+  // así que en una app de poco uso casi toda visita lo pagaba de nuevo. Manteniendo un
+  // piso de conexiones vivas, ese costo se paga una sola vez al arrancar.
+  pool: { max: 10, min: 2, idle: 300000, acquire: 30000, evict: 30000 }
 });
 
 export const Organizacion = OrganizacionModel(db);

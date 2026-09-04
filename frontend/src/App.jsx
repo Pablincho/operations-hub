@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from '@/contexts/AuthContext'
 import { NotificationsProvider } from '@/contexts/NotificationsContext'
 import Layout from '@/components/Layout'
 import Login from '@/pages/Login'
+import AgentActivityOverlay from '@/components/AgentActivityOverlay'
 
 const Dashboard = lazy(() => import('@/pages/Dashboard'))
 const Asistente = lazy(() => import('@/pages/Asistente'))
@@ -75,6 +76,7 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <NotificationsProvider>
+          <AgentActivityOverlay />
           <RouteErrorBoundary>
             <Suspense fallback={<div className="min-h-screen grid place-items-center text-sm text-muted-foreground">Cargando…</div>}>
               <AppRoutes />

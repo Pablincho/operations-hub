@@ -19,7 +19,9 @@ export async function verifyJWT(req, res, next) {
   try {
     const usuario = await Usuario.findOne({
       where: { id: payload.id, activo: true },
-      attributes: ['id', 'email', 'nombre', 'rol', 'funciones', 'organizacionId', 'autoaprobarManual']
+      // Se traen todas las columnas no sensibles: es el mismo viaje a la base y le
+      // permite a /auth/me responder con req.user en lugar de repetir la consulta.
+      attributes: { exclude: ['passwordHash', 'resetTokenHash', 'resetTokenExpiresAt'] }
     });
     if (!usuario) {
       return res.status(401).json({ success: false, error: 'Usuario inactivo o inexistente' });

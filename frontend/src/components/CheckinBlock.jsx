@@ -2,14 +2,14 @@ import { useState, useEffect } from 'react'
 import api from '@/services/api'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { Loader2, RefreshCw, BookOpen, CalendarCheck } from 'lucide-react'
+import { Loader2, RefreshCw, BookOpen, CalendarCheck, ListChecks } from 'lucide-react'
 
 // El ciclo 1 conserva las preguntas iniciales históricas. Después, cada tanda responde
 // a la configuración y al plan aprobado por el supervisor.
-export default function CheckinBlock({ funcion, color, todaySession, onboardingDone, diasCompletos, onComplete, isPrimary, cycle }) {
+export default function CheckinBlock({ funcion, color, todaySession, onboardingDone, diasCompletos, onComplete, isPrimary, cycle, preguntasPendientes = 0, permiteResponderTodas = false }) {
   const [session, setSession] = useState(todaySession)
   const [answers, setAnswers] = useState([])
-  const [loading, setLoading] = useState(false)
+  const [loadingMode, setLoadingMode] = useState('')
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -26,27 +26,38 @@ export default function CheckinBlock({ funcion, color, todaySession, onboardingD
   const isOnboarding = !!cycle?.esLegacy && (session ? session.preguntas.length === 10 : !onboardingDone)
   const PhaseIcon = isOnboarding ? BookOpen : CalendarCheck
   const phaseLabel = isOnboarding ? 'Preguntas iniciales' : `Ciclo ${cycle?.numero || 1} · tanda ${diasCompletos + 1}`
+  const preguntasPorTanda = cycle?.preguntasPorEntrega || 3
+  const preguntasEnProximaTanda = Math.min(preguntasPendientes, preguntasPorTanda)
 
-  async function startCheckin() {
-    setLoading(true)
+  async function startCheckin(todasPendientes = false) {
+    setLoadingMode(todasPendientes ? 'todas' : 'tanda')
     try {
-      const res = await api.post('/checkin/iniciar', { funcion })
+      const res = await api.post('/checkin/iniciar', { funcion, todasPendientes }, {
+        agentActivity: {
+          titulo: 'Preparando la tanda',
+          descripcion: 'El sistema está seleccionando y, si hace falta, preparando las preguntas del ciclo.'
+        }
+      })
       setSession(res.data.data)
       setAnswers(res.data.data.preguntas.map(p => p.respuesta || ''))
     } catch (err) {
       alert(err.response?.data?.error || 'Error al iniciar check-in')
-    } finally { setLoading(false) }
+    } finally { setLoadingMode('') }
   }
 
   async function saveAnswers() {
     setSaving(true)
     try {
-      await api.post(`/checkin/${session.id}/responder`, { respuestas: answers })
-      setSession(prev => ({
-        ...prev,
-        completado: true,
-        preguntas: prev.preguntas.map((p, i) => ({ ...p, respuesta: answers[i], respondida: true }))
-      }))
+      await api.post(`/checkin/${session.id}/responder`, { respuestas: answers }, {
+        agentActivity: {
+          titulo: 'Procesando tus respuestas',
+          descripcion: 'Guardamos las respuestas y, si el ciclo se completó, los agentes generarán el manual para revisión.'
+        }
+      })
+      // Una sesión completada no bloquea la siguiente tanda: el padre recarga la
+      // disponibilidad y, si quedan preguntas aprobadas, vuelve a mostrar el inicio.
+      setSession(null)
+      setAnswers([])
       onComplete?.()
     } catch (err) {
       alert(err.response?.data?.error || 'Error al guardar respuestas')
@@ -66,22 +77,44 @@ export default function CheckinBlock({ funcion, color, todaySession, onboardingD
       <div className="p-4">
         {/* No session started */}
         {!session && (
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-sm text-amber-900">
-              {isOnboarding
-                ? 'Respondé las 10 preguntas iniciales para documentar tu función.'
-                : `Respondé la próxima tanda de ${cycle?.preguntasPorEntrega || 3} preguntas para seguir documentando tu función.`}
-            </p>
-            <Button
-              onClick={startCheckin}
-              disabled={loading}
-              size="sm"
-              className="gap-1.5 shrink-0"
-              style={{ background: color, color: 'white' }}
-            >
-              {loading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-              Iniciar
-            </Button>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex-1 min-w-52">
+              <p className="text-sm text-amber-900">
+                {isOnboarding
+                  ? 'Respondé las 10 preguntas iniciales para documentar tu función.'
+                  : preguntasEnProximaTanda === 1
+                    ? 'Respondé la pregunta pendiente para seguir documentando tu función.'
+                    : `Respondé la próxima tanda de ${preguntasEnProximaTanda || preguntasPorTanda} preguntas para seguir documentando tu función.`}
+              </p>
+              {permiteResponderTodas && !isOnboarding && preguntasPendientes > preguntasPorTanda && (
+                <p className="mt-1 text-xs text-amber-700">Hay {preguntasPendientes} preguntas pendientes. Podés responder la tanda habitual o todas ahora.</p>
+              )}
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              <Button
+                onClick={() => startCheckin(false)}
+                disabled={!!loadingMode}
+                size="sm"
+                className="gap-1.5 shrink-0"
+                style={{ background: color, color: 'white' }}
+              >
+                {loadingMode === 'tanda' ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+                {loadingMode === 'tanda' ? 'Preparando...' : preguntasEnProximaTanda === 1 ? 'Responder pregunta' : 'Iniciar tanda'}
+              </Button>
+              {permiteResponderTodas && !isOnboarding && preguntasPendientes > preguntasPorTanda && (
+                <Button
+                  onClick={() => startCheckin(true)}
+                  disabled={!!loadingMode}
+                  size="sm"
+                  variant="outline"
+                  title="Incluye todas las preguntas aprobadas que todavía no respondiste en este ciclo."
+                  className="gap-1.5 shrink-0"
+                >
+                  {loadingMode === 'todas' ? <Loader2 size={13} className="animate-spin" /> : <ListChecks size={13} />}
+                  {loadingMode === 'todas' ? 'Preparando...' : 'Responder todas'}
+                </Button>
+              )}
+            </div>
           </div>
         )}
 
