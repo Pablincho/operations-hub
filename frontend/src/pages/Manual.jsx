@@ -820,7 +820,13 @@ export default function MiManual() {
       // Las dos van juntas: el check-in no depende de lo que devuelva refreshUser.
       const [fresh, checkin] = await Promise.all([refreshUser(), getShared('/checkin/hoy')])
       const fns = fresh?.funciones || []
-      setSelectedFn(prev => prev || fns[0] || '')
+      // Si hay más de una función, priorizamos la que tiene una tanda abierta para
+      // evitar que el operativo caiga en otra pestaña vacía y no vea qué responder.
+      const sessionOpen = (checkin.data || []).find(session =>
+        !session.completado && fns.includes(session.funcion)
+      )?.funcion
+      const available = fns.find(funcion => checkin.checkinAvailabilityMap?.[funcion]?.estado === 'disponible')
+      setSelectedFn(prev => prev || sessionOpen || available || fns[0] || '')
       setTodaySessions(checkin.data || [])
       setOnboardingStatus(checkin.onboardingStatus || {})
       setDailyCounts(checkin.dailyCounts || {})
@@ -861,7 +867,7 @@ export default function MiManual() {
       {
         popover: {
           title: 'Mi Manual',
-          description: 'Con tus respuestas del check-in se arma solo el manual de tu puesto. Te muestro cómo generarlo, editarlo y enviarlo a aprobación.'
+          description: 'Acá reunís la evidencia y ves el manual de cada función. Al terminar las preguntas del ciclo, los agentes elaboran el borrador y lo envían solos al supervisor.'
         }
       },
       {
@@ -875,8 +881,8 @@ export default function MiManual() {
       {
         element: '[data-tour="manual-generar"]',
         popover: {
-          title: 'Generar o actualizar',
-          description: '"Generar manual" arma el borrador la primera vez. Después, cada vez que respondas preguntas nuevas en el check-in vas a ver "Actualizar": solo reescribe los bloques que tienen respuestas nuevas o editadas, el resto queda intacto.',
+          title: 'Estado del manual',
+          description: 'En el flujo actual no hace falta generar ni enviar el manual manualmente: al completar el ciclo se procesa automáticamente. Si hay una devolución, primero respondé o editá la evidencia solicitada; el sistema regenerará solo los bloques necesarios.',
           side: 'bottom'
         }
       },
@@ -884,17 +890,17 @@ export default function MiManual() {
         element: '[data-tour="manual-bloques"]',
         popover: {
           title: 'Bloques del manual',
-          description: 'El contenido está organizado en bloques (funciones, procesos, herramientas, etc). Click en cada uno para expandirlo. El punto naranja junto al título marca los bloques con cambios todavía no enviados, y podés alternar entre ver "Cambios" (resaltados) o el "Texto" final.',
+          description: 'El manual está separado por bloques. Expandí uno para leerlo; los avisos naranjas indican una devolución o un cambio pendiente. Los bloques aprobados se conservan cuando se corrige otro bloque.',
           side: 'top'
         }
       },
       {
         element: '[data-tour="manual-enviar"]',
         popover: {
-          title: autoaprobarManualUser ? 'Publicar manual' : 'Enviar a aprobación',
+          title: autoaprobarManualUser ? 'Publicar manual' : 'Revisión automática',
           description: autoaprobarManualUser
-            ? 'No tenés un revisor asignado, así que acá lo publicás vos mismo: al confirmar, el manual queda "Vigente" de inmediato, sin pasar por revisión.'
-            : 'Cuando esté listo, hacé click acá: podés agregar una nota opcional para tu supervisor y confirmar el envío. Mientras diga "En revisión" no vas a poder editarlo. Si te lo devuelve, vas a ver sus observaciones arriba de los bloques y vas a poder corregir y reenviar.',
+            ? 'Si tu función tiene autoaprobación, este control publica la versión vigente. Para las demás funciones, el envío a revisión se realiza automáticamente al completar el ciclo.'
+            : 'Cuando el ciclo se completa, el manual pasa a revisión sin que tengas que enviarlo. Si el supervisor devuelve un bloque, vas a ver su observación y la evidencia que debés completar o corregir.',
           side: 'bottom'
         }
       },
@@ -902,7 +908,7 @@ export default function MiManual() {
         element: '[data-tour="manual-entradas"]',
         popover: {
           title: 'Respuestas anteriores',
-          description: 'Acá está cada respuesta que diste en el check-in. Click en el lápiz para editarla, escribí el cambio y tocá "Guardar". Las respuestas editadas quedan resaltadas: en ámbar mientras el manual todavía no las incorporó, y en verde una vez que las incorporaste con "Actualizar". Podés descartar un cambio con la X para volver a la respuesta original.',
+          description: 'Acá está la evidencia que respalda el manual. Podés editar una respuesta; si pertenece a una devolución, completá las que estén señaladas. Al quedar lista la evidencia requerida, la nueva versión se genera automáticamente.',
           side: 'top'
         }
       }

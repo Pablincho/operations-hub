@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef } from 'react'
 import { driver } from 'driver.js'
 import 'driver.js/dist/driver.css'
 
-const KEY_PREFIX = 'remi_tour_'
+// Al cambiar esta versión se relanzan los recorridos para todos los usuarios y
+// navegadores, sin tocar sus datos ni el estado de los ciclos.
+const KEY_PREFIX = 'remi_tour_v2_'
 
 // La clave incluye el id del usuario: en computadoras compartidas cada persona ve
 // el tour la primera vez que entra, aunque otro ya lo haya visto en ese navegador.

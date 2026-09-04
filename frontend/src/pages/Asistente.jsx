@@ -289,7 +289,7 @@ export default function Asistente() {
       {
         popover: {
           title: 'Asistente IA',
-          description: 'Consultá procedimientos y responsabilidades de tu función con tus propias palabras. Responde en base a lo que ya está documentado en los manuales de tus funciones. Si algo todavía no fue documentado, te lo va a decir en vez de inventar una respuesta.'
+          description: 'Consultá procedimientos y responsabilidades con tus propias palabras. El asistente usa manuales vigentes y evidencia documentada; si algo aún está en relevamiento o no fue registrado, lo indicará en vez de inventarlo.'
         }
       },
       {

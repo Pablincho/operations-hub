@@ -86,14 +86,14 @@ export default function Dashboard() {
       {
         popover: {
           title: `¡Hola, ${(user?.nombre || '').split(' ')[0]}! 👋`,
-          description: 'REMI documenta el conocimiento de tu puesto a partir de preguntas cortas. Te muestro en 30 segundos cómo funciona.'
+          description: 'REMI documenta el conocimiento del puesto en ciclos. Tu supervisor define el foco y el sistema transforma tus respuestas en un manual revisable.'
         }
       },
       {
         element: '[data-tour="checkin"]',
         popover: {
           title: 'Tu check-in del día',
-          description: 'Acá respondés las preguntas de tu función. Cada ciclo tiene la cantidad y frecuencia configuradas por tu supervisor. Contestá las que puedas y tocá "Guardar respuestas". Si más tarde querés corregir algo, lo editás desde "Mi Manual".',
+          description: 'Acá respondés la tanda aprobada para tu ciclo. La cantidad, frecuencia y la posibilidad de responder todas las pendientes las define tu supervisor. Al guardar, las respuestas pasan a ser evidencia del manual.',
           side: 'top',
           align: 'start'
         }
@@ -102,7 +102,7 @@ export default function Dashboard() {
         element: '[data-tour="manual"]',
         popover: {
           title: 'Tu manual',
-          description: 'Con tus respuestas se arma solo el manual de tu puesto. Desde ahí lo generás o actualizás, editás respuestas puntuales y lo enviás a tu supervisor para aprobación.',
+          description: 'Acá ves el manual y las respuestas de cada función. Cuando se completan las preguntas del ciclo, el borrador se genera y se envía automáticamente a revisión; no necesitás solicitar ese envío.',
           side: 'bottom'
         }
       },
@@ -118,7 +118,7 @@ export default function Dashboard() {
         element: '[data-tour="progreso"]',
         popover: {
           title: 'Tu progreso',
-          description: 'Seguí cuántas respuestas lleva el ciclo de cada función. La meta es orientativa cuando el supervisor define una; él decide cuándo finalizar el relevamiento.',
+          description: 'Seguí el avance del ciclo actual. El porcentaje usa el límite de preguntas definido por el supervisor; al completar las preguntas previstas, el sistema inicia la generación y revisión del borrador.',
           side: 'top'
         }
       }

@@ -483,14 +483,30 @@ export default function Revisiones() {
       {
         popover: {
           title: 'Revisiones',
-          description: 'Acá dirigís los ciclos de elaboración: elegís el foco, preparás o aprobás preguntas, decidís cuándo termina el relevamiento y revisás el manual resultante.'
+          description: 'Desde esta pantalla dirigís el aprendizaje de cada puesto: definís el foco, configurás las tandas, revisás las preguntas cuando corresponde y validás el manual que los agentes elaboran.'
+        }
+      },
+      {
+        element: '[data-tour="revisiones-general"]',
+        popover: {
+          title: 'Reglas para todos tus supervisados',
+          description: 'Usá “Configurar todos” para definir preguntas por entrega, frecuencia, límite, revisión previa y si el operativo puede responder todas las aprobadas. Podés aplicarlo a los ciclos abiertos sin alterar los bloqueados o completados.',
+          side: 'bottom'
+        }
+      },
+      {
+        element: '[data-tour="revisiones-ciclo"]',
+        popover: {
+          title: 'Orientar y ampliar un ciclo',
+          description: 'Abrí un puesto para elegir temas y escribir la orientación libre. “Preparar preguntas” ejecuta cobertura, investigación y planificación; si activaste revisión de tandas, las aprobás antes de que lleguen al operativo. Al completar el límite, el manual se genera y se envía automáticamente.',
+          side: 'bottom'
         }
       },
       {
         element: '[data-tour="revisiones-acciones"]',
         popover: {
-          title: 'Aprobar o devolver todo',
-          description: '"Aprobar todo" deja el manual como "Vigente" de inmediato. "Devolver" abre un cuadro para escribir una observación general: el manual vuelve a "Borrador", el operativo la ve en su pantalla, corrige y te lo vuelve a enviar. El botón "Cambios" te muestra qué se modificó respecto a la versión anterior aprobada, resaltado en rojo/verde.',
+          title: 'Aprobar y continuar',
+          description: '“Aprobar todo” valida la versión y abre el cierre de ciclo: ahí elegís el foco y la configuración del próximo. Por defecto se crea y prepara el ciclo siguiente. “Devolver” permite pedir una corrección sin perder la trazabilidad de los bloques.',
           side: 'bottom',
           align: 'end'
         }
@@ -499,7 +515,7 @@ export default function Revisiones() {
         element: '[data-tour="revisiones-bloque"]',
         popover: {
           title: 'Revisión por bloque',
-          description: 'Si solo una parte necesita ajustes, no hace falta devolver todo el manual: expandí el bloque y aprobalo o devolvelo con su propia observación puntual. Los bloques que no cambiaron respecto a la versión anterior ya vienen aprobados automáticamente y no aparecen acá. Cuando quedan todos los bloques resueltos (aprobados o devueltos), el manual se resuelve solo y desaparece de esta lista.',
+          description: 'Si solo una parte necesita ajustes, expandí ese bloque. “Corregir redacción” usa la evidencia existente; “Falta conocimiento” crea una pregunta adicional para el operativo. Los demás bloques aprobados quedan cerrados y no deben volver a revisarse.',
           side: 'top'
         }
       }

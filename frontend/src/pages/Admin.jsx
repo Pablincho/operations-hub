@@ -215,7 +215,7 @@ export default function Admin() {
         element: '[data-tour="admin-progreso"]',
         popover: {
           title: 'Progreso por función',
-          description: 'Cuántas respuestas lleva el ciclo actual de cada puesto. La meta solo aparece si el supervisor definió una y siempre es orientativa. El selector "Principal" define quién es el operativo principal cuando hay más de una persona con esa función asignada.',
+          description: 'Muestra las respuestas del ciclo actual de cada puesto. Si hay un límite, el avance se calcula sobre ese máximo de preguntas; el supervisor decide la orientación y cuándo iniciar o cerrar cada ciclo. El selector "Principal" define quién responde cuando hay más de una persona con esa función.',
           side: 'bottom'
         }
       },
@@ -240,7 +240,7 @@ export default function Admin() {
         element: '[data-tour="admin-funciones"]',
         popover: {
           title: 'Funciones asignadas',
-          description: 'Click para asignar o quitar una función. Cada función habilita su propio check-in, manual y asistente para ese usuario.',
+          description: 'Click para asignar o quitar una función. Cada función tiene su propio ciclo, preguntas, evidencia y manual; asignala solo cuando corresponda al trabajo real de esa persona.',
           side: 'bottom'
         }
       },

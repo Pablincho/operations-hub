@@ -77,7 +77,7 @@ function GeneralCycleConfig({ config, editableCycles, onSaved }) {
 
   return (
     <>
-      <Card className="mb-3 border-dashed">
+      <Card className="mb-3 border-dashed" data-tour="revisiones-general">
         <CardContent className="p-4 flex items-center justify-between gap-4">
           <div>
             <p className="text-sm font-semibold flex items-center gap-1.5"><SlidersHorizontal size={14} /> Configuración general</p>
@@ -124,7 +124,7 @@ function GeneralCycleConfig({ config, editableCycles, onSaved }) {
   )
 }
 
-function CycleCard({ position, topics, onRefresh }) {
+function CycleCard({ position, topics, onRefresh, isFirst = false }) {
   const cycle = position.ciclo
   const [expanded, setExpanded] = useState(false)
   const [form, setForm] = useState(() => ({
@@ -229,7 +229,7 @@ function CycleCard({ position, topics, onRefresh }) {
   }
 
   return (
-    <Card className="overflow-hidden">
+    <Card className="overflow-hidden" data-tour={isFirst ? 'revisiones-ciclo' : undefined}>
       <button onClick={() => setExpanded(value => !value)} className="w-full p-4 flex items-center gap-3 text-left">
         <div className="flex-1"><p className="text-sm font-semibold">{position.funcion} · ciclo {cycle.numero}</p><p className="text-xs text-muted-foreground">{position.ocupante.nombre} · {STATE_LABELS[cycle.estado] || cycle.estado} · {cycle.respuestasCiclo || 0} respuestas</p></div>
         {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
@@ -340,5 +340,5 @@ export default function CycleManagement({ onLoadingChange, hidden = false }) {
   if (loading || hidden) return null
   if (!positions.length) return null
   const editableCycles = positions.filter(position => ['configuracion', 'relevamiento', 'pausado'].includes(position.ciclo?.estado)).length
-  return <section className="mb-8"><div className="mb-3"><h2 className="text-base font-bold" style={{ color: '#1a3a1a' }}>Ciclos de elaboración</h2><p className="text-xs text-muted-foreground">Definí el foco, revisá las preguntas y decidí cuándo hay información suficiente para generar cada manual.</p></div><GeneralCycleConfig config={generalConfig} editableCycles={editableCycles} onSaved={async result => { setGeneralMessage(result.appliedCycles ? `Configuración guardada y aplicada a ${result.appliedCycles} ciclo${result.appliedCycles === 1 ? '' : 's'}.` : 'Configuración general guardada.'); await load() }} />{generalMessage && <p className="mb-3 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700">{generalMessage}</p>}<div className="space-y-3">{positions.map(position => <CycleCard key={`${position.ocupante.id}-${position.funcion}-${position.ciclo?.updatedAt || 'nuevo'}`} position={position} topics={topics} onRefresh={load} />)}</div></section>
+  return <section className="mb-8"><div className="mb-3"><h2 className="text-base font-bold" style={{ color: '#1a3a1a' }}>Ciclos de elaboración</h2><p className="text-xs text-muted-foreground">Definí el foco, revisá las preguntas y decidí cuándo hay información suficiente para generar cada manual.</p></div><GeneralCycleConfig config={generalConfig} editableCycles={editableCycles} onSaved={async result => { setGeneralMessage(result.appliedCycles ? `Configuración guardada y aplicada a ${result.appliedCycles} ciclo${result.appliedCycles === 1 ? '' : 's'}.` : 'Configuración general guardada.'); await load() }} />{generalMessage && <p className="mb-3 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700">{generalMessage}</p>}<div className="space-y-3">{positions.map((position, index) => <CycleCard key={`${position.ocupante.id}-${position.funcion}-${position.ciclo?.updatedAt || 'nuevo'}`} position={position} topics={topics} onRefresh={load} isFirst={index === 0} />)}</div></section>
 }
