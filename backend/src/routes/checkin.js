@@ -45,7 +45,10 @@ router.get('/hoy', async (req, res) => {
 
     const [todaySessions, completedRows, entryRows, questionRows] = await Promise.all([
       cycleIds.length
-        ? CheckinSession.findAll({ where: { usuarioId: req.user.id, fecha: today, completado: false, cicloId: { [Op.in]: cycleIds } } })
+        // Una tanda iniciada no vence al terminar el día: si el operativo vuelve más
+        // tarde debe poder retomarla. /iniciar ya recupera sesiones incompletas sin
+        // filtrar por fecha; esta consulta debe exponer exactamente el mismo estado.
+        ? CheckinSession.findAll({ where: { usuarioId: req.user.id, completado: false, cicloId: { [Op.in]: cycleIds } } })
         : [],
       // Los completados solo se usan para contar y saber la última fecha, así que se
       // agregan en SQL: traerlos enteros arrastraba todo el JSONB de preguntas y

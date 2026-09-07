@@ -28,8 +28,7 @@ const NEXT_CYCLE_TOPICS = [
 ]
 
 function WordDiff({ oldText, newText }) {
-  if (!oldText) return <p className="text-xs leading-relaxed whitespace-pre-wrap">{newText}</p>
-  const parts = diffWords(oldText, newText)
+  const parts = diffWords(oldText || '', newText)
   return (
     <p className="text-xs leading-relaxed whitespace-pre-wrap">
       {parts.map((part, i) => (
@@ -97,7 +96,7 @@ function BloqueReview({ bloqueKey, nombre, contenido, contenidoAnterior, bloqueE
       {expanded && (
         <div className="border-t bg-muted/10">
           <div title="Texto de solo lectura. Para solicitar cambios, usá Devolver bloque y explicá la corrección necesaria." className="px-3 py-2 text-muted-foreground cursor-not-allowed">
-            {contenidoAnterior && showDiff
+            {showDiff
               ? <WordDiff oldText={contenidoAnterior} newText={contenido} />
               : <p className="text-xs leading-relaxed whitespace-pre-wrap">{contenido}</p>
             }
@@ -404,7 +403,7 @@ function ManualCard({ manual: initialManual, onResolved, isFirst }) {
             </div>
           </div>
           <DialogFooter className="sm:justify-between">
-            <label title="Crea el ciclo siguiente y ejecuta ahora la investigación y la primera tanda de preguntas con la configuración elegida arriba." className="flex items-center gap-2 text-sm cursor-help"><input type="checkbox" checked={startNextCycle} onChange={event => setStartNextCycle(event.target.checked)} />Crear y preparar la primera tanda ahora</label>
+            <label title="Marcado: crea el ciclo siguiente y ejecuta ahora la investigación y la primera tanda con la configuración elegida arriba. Desmarcado: aprueba y cierra este ciclo; guarda esta configuración para el próximo, pero no crea el nuevo ciclo ni llama a los agentes hasta que lo inicies desde Revisiones." className="flex items-center gap-2 text-sm cursor-help"><input type="checkbox" checked={startNextCycle} onChange={event => setStartNextCycle(event.target.checked)} />Crear y preparar la primera tanda ahora</label>
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => setShowApproveDialog(false)}>Cancelar</Button>
               <Button onClick={aprobarTodo} disabled={approvingAll} className="gap-1 bg-green-600 hover:bg-green-700 text-white">
@@ -541,7 +540,7 @@ export default function Revisiones() {
         </button>
       </div>
 
-      <CycleManagement onLoadingChange={setCyclesLoading} hidden={loading || cyclesLoading} />
+      <CycleManagement onLoadingChange={setCyclesLoading} onManualReady={load} hidden={loading || cyclesLoading} />
 
       {loading || cyclesLoading ? (
         <p className="text-muted-foreground text-sm">Cargando...</p>

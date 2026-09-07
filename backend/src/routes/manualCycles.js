@@ -13,6 +13,7 @@ import {
 } from '../models/index.js';
 import { getPrimaryOccupant, getPrimaryOccupantsByFuncion, userCanManageCycle } from '../services/positionService.js';
 import { planificarPreguntasCiclo, recuperarCicloAtascado } from '../services/manualAgentService.js';
+import { generarYEnviarRevisionAutomatica } from '../services/autoReviewService.js';
 
 const router = Router();
 router.use(verifyJWT);
@@ -492,7 +493,18 @@ router.post('/:id/cerrar-relevamiento', async (req, res) => {
       return res.status(409).json({ success: false, error: 'El relevamiento no está activo' });
     }
     await cycle.update({ estado: 'listo_para_generar', relevamientoCerradoEn: new Date() });
-    res.json({ success: true, data: await cycleSummary(cycle) });
+    // Cerrar antes del límite es una decisión del supervisor, no un paso extra que
+    // deba trasladarse al operativo. A partir de acá se usa el mismo pipeline que
+    // procesa el límite: redacta, verifica y envía el manual a revisión.
+    let autoReview;
+    try {
+      autoReview = await generarYEnviarRevisionAutomatica(cycle.id);
+    } catch (autoReviewError) {
+      console.error('[manual-cycles] No se pudo procesar el cierre automático:', autoReviewError.message);
+      autoReview = { estado: 'pendiente', error: 'El relevamiento se cerró, pero no se pudo procesar el manual automáticamente.' };
+    }
+    await cycle.reload();
+    res.json({ success: true, data: await cycleSummary(cycle), autoReview });
   } catch (error) {
     console.error('[manual-cycles] Error cerrando relevamiento:', error.message);
     res.status(500).json({ success: false, error: 'Error interno' });

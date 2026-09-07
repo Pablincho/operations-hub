@@ -30,7 +30,12 @@ export function NotificationsProvider({ children }) {
         setTieneCheckin(false)
       } else {
         const payload = await getShared('/checkin/hoy')
-        const { data: sessions = [], primaryStatusMap = {}, cycleStatusMap = {} } = payload
+        const {
+          data: sessions = [],
+          primaryStatusMap = {},
+          cycleStatusMap = {},
+          checkinAvailabilityMap = {}
+        } = payload
         const funciones = funcionesKey ? funcionesKey.split('|') : []
         const pendiente = funciones.some(fn => {
           if (primaryStatusMap[fn] === false) return false
@@ -38,7 +43,10 @@ export function NotificationsProvider({ children }) {
           if (!cycle || cycle.estado === 'completado') return false
           if (cycle.estado !== 'relevamiento' && !(cycle.esLegacy && cycle.estado === 'configuracion')) return false
           const sesionHoy = sessions.find(s => s.funcion === fn)
-          return !sesionHoy?.completado
+          // No basta con que el ciclo siga abierto: el punto sólo debe aparecer cuando
+          // el operativo puede retomar una tanda ya iniciada o iniciar una disponible.
+          if (sesionHoy && !sesionHoy.completado) return true
+          return checkinAvailabilityMap[fn]?.estado === 'disponible'
         })
         setTieneCheckin(pendiente)
       }

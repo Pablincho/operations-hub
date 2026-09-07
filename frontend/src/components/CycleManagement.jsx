@@ -33,7 +33,7 @@ const FIELD_HELP = {
   preguntasPorEntrega: 'Cantidad máxima de preguntas que recibe el operativo en cada check-in.',
   frecuencia: 'Define la periodicidad mínima con la que el operativo puede recibir una nueva tanda.',
   intervaloDias: 'Multiplica la frecuencia elegida: por ejemplo, 2 con frecuencia diaria significa cada 2 días.',
-  objetivoPreguntas: 'Límite total de preguntas que pueden preparar los agentes en este ciclo. No cierra el ciclo automáticamente; el supervisor decide cuándo finalizarlo.'
+  objetivoPreguntas: 'Límite total de preguntas que pueden preparar los agentes en este ciclo. Al responderse la última, el ciclo se cierra, genera el manual y lo envía a revisión automáticamente.'
 }
 
 function GeneralCycleConfig({ config, editableCycles, onSaved }) {
@@ -124,7 +124,7 @@ function GeneralCycleConfig({ config, editableCycles, onSaved }) {
   )
 }
 
-function CycleCard({ position, topics, onRefresh, isFirst = false }) {
+function CycleCard({ position, topics, onRefresh, onManualReady, isFirst = false }) {
   const cycle = position.ciclo
   const [expanded, setExpanded] = useState(false)
   const [form, setForm] = useState(() => ({
@@ -154,8 +154,8 @@ function CycleCard({ position, topics, onRefresh, isFirst = false }) {
 
   async function run(action, callback) {
     setBusy(action); setError('')
-    try { await callback(); await onRefresh() }
-    catch (err) { setError(err.response?.data?.error || 'No se pudo completar la acción') }
+    try { await callback(); await onRefresh(); return true }
+    catch (err) { setError(err.response?.data?.error || 'No se pudo completar la acción'); return false }
     finally { setBusy('') }
   }
 
@@ -195,9 +195,10 @@ function CycleCard({ position, topics, onRefresh, isFirst = false }) {
     const approvedCount = questions.filter(question => question.estado === 'aprobada').length
     const warning = approvedCount
       ? `Quedan ${approvedCount} pregunta${approvedCount === 1 ? '' : 's'} aprobada${approvedCount === 1 ? '' : 's'} sin responder. Al finalizar, el operativo ya no podrá responderlas en este ciclo.\n\n¿Querés finalizar el relevamiento de todos modos?`
-      : 'Al finalizar se detendrán nuevos check-ins y el operativo podrá generar o actualizar el manual con la evidencia reunida.\n\n¿Querés finalizar el relevamiento?'
+      : 'Se cerrará el relevamiento y los agentes generarán y enviarán el manual a revisión con la evidencia reunida.\n\n¿Querés finalizar antes del límite?'
     if (!window.confirm(warning)) return
-    await run('cerrar', () => api.post(`/manual-cycles/${cycle.id}/cerrar-relevamiento`))
+    const cerrado = await run('cerrar', () => api.post(`/manual-cycles/${cycle.id}/cerrar-relevamiento`))
+    if (cerrado) await onManualReady?.()
   }
 
   if (!cycle || cycle.estado === 'completado') {
@@ -265,7 +266,7 @@ function CycleCard({ position, topics, onRefresh, isFirst = false }) {
               <div className={`rounded-lg border px-3 py-2.5 text-xs ${approved.length ? 'border-blue-200 bg-blue-50 text-blue-900' : 'border-muted bg-muted/30 text-muted-foreground'}`}>
                 {approved.length
                   ? <><strong>{approved.length} pregunta{approved.length === 1 ? '' : 's'} aprobada{approved.length === 1 ? '' : 's'} pendiente{approved.length === 1 ? '' : 's'} de respuesta.</strong> El operativo puede continuar respondiéndola{approved.length === 1 ? '' : 's'} sin que hagas nada más.</>
-                  : <>No hay preguntas aprobadas pendientes de respuesta. Podés preparar una nueva tanda o finalizar el relevamiento cuando la evidencia sea suficiente.</>}
+                  : <>No hay preguntas aprobadas pendientes de respuesta. Si el límite ya se alcanzó, el manual se procesa automáticamente; si no, podés preparar otra tanda o finalizar antes del límite.</>}
               </div>
             )}
             <div className={`grid gap-3 ${cycle.estado === 'relevamiento' ? 'sm:grid-cols-2' : ''}`}>
@@ -281,9 +282,9 @@ function CycleCard({ position, topics, onRefresh, isFirst = false }) {
                 ))}
               </div>
               {cycle.estado === 'relevamiento' && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
-                <p className="text-xs font-semibold text-amber-900">Cerrar este ciclo</p>
-                <p className="mt-0.5 text-xs text-amber-800">Detiene nuevos check-ins y habilita al operativo a generar o actualizar el manual con la evidencia reunida.</p>
-                <Button size="sm" onClick={closeRelevamiento} disabled={!!busy} title="Antes de cerrar te avisaremos si quedan preguntas aprobadas sin responder." className="mt-2 gap-1 bg-amber-600 hover:bg-amber-700"><SquareCheckBig size={13} /> Finalizar relevamiento</Button>
+                <p className="text-xs font-semibold text-amber-900">Finalizar con la evidencia actual</p>
+                <p className="mt-0.5 text-xs text-amber-800">Cierra el ciclo sin esperar más respuestas y envía el manual a revisión automáticamente.</p>
+                <Button size="sm" onClick={closeRelevamiento} disabled={!!busy} title="Antes de cerrar te avisaremos si quedan preguntas aprobadas sin responder. Los agentes generarán y enviarán el manual automáticamente." className="mt-2 gap-1 bg-amber-600 hover:bg-amber-700"><SquareCheckBig size={13} /> Finalizar y enviar a revisión</Button>
               </div>}
             </div>
             <div className="flex flex-wrap gap-2">
@@ -314,7 +315,7 @@ function CycleCard({ position, topics, onRefresh, isFirst = false }) {
   )
 }
 
-export default function CycleManagement({ onLoadingChange, hidden = false }) {
+export default function CycleManagement({ onLoadingChange, onManualReady, hidden = false }) {
   const [positions, setPositions] = useState([])
   const [topics, setTopics] = useState([])
   const [generalConfig, setGeneralConfig] = useState(null)
@@ -340,5 +341,5 @@ export default function CycleManagement({ onLoadingChange, hidden = false }) {
   if (loading || hidden) return null
   if (!positions.length) return null
   const editableCycles = positions.filter(position => ['configuracion', 'relevamiento', 'pausado'].includes(position.ciclo?.estado)).length
-  return <section className="mb-8"><div className="mb-3"><h2 className="text-base font-bold" style={{ color: '#1a3a1a' }}>Ciclos de elaboración</h2><p className="text-xs text-muted-foreground">Definí el foco, revisá las preguntas y decidí cuándo hay información suficiente para generar cada manual.</p></div><GeneralCycleConfig config={generalConfig} editableCycles={editableCycles} onSaved={async result => { setGeneralMessage(result.appliedCycles ? `Configuración guardada y aplicada a ${result.appliedCycles} ciclo${result.appliedCycles === 1 ? '' : 's'}.` : 'Configuración general guardada.'); await load() }} />{generalMessage && <p className="mb-3 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700">{generalMessage}</p>}<div className="space-y-3">{positions.map((position, index) => <CycleCard key={`${position.ocupante.id}-${position.funcion}-${position.ciclo?.updatedAt || 'nuevo'}`} position={position} topics={topics} onRefresh={load} isFirst={index === 0} />)}</div></section>
+  return <section className="mb-8"><div className="mb-3"><h2 className="text-base font-bold" style={{ color: '#1a3a1a' }}>Ciclos de elaboración</h2><p className="text-xs text-muted-foreground">Definí el foco, revisá las preguntas y decidí cuándo hay información suficiente para generar cada manual.</p></div><GeneralCycleConfig config={generalConfig} editableCycles={editableCycles} onSaved={async result => { setGeneralMessage(result.appliedCycles ? `Configuración guardada y aplicada a ${result.appliedCycles} ciclo${result.appliedCycles === 1 ? '' : 's'}.` : 'Configuración general guardada.'); await load() }} />{generalMessage && <p className="mb-3 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700">{generalMessage}</p>}<div className="space-y-3">{positions.map((position, index) => <CycleCard key={`${position.ocupante.id}-${position.funcion}-${position.ciclo?.updatedAt || 'nuevo'}`} position={position} topics={topics} onRefresh={load} onManualReady={onManualReady} isFirst={index === 0} />)}</div></section>
 }

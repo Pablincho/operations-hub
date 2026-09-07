@@ -220,8 +220,7 @@ function ManualPDF({ funcion, manual, historial = [] }) {
 
 // ─── Word diff ───────────────────────────────────────────────────────────────
 function WordDiff({ oldText, newText }) {
-  if (!oldText) return <p className="text-xs leading-relaxed whitespace-pre-wrap">{newText}</p>
-  const parts = diffWords(oldText, newText)
+  const parts = diffWords(oldText || '', newText)
   return (
     <p className="text-xs leading-relaxed whitespace-pre-wrap">
       {parts.map((part, i) => (
