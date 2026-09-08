@@ -581,7 +581,13 @@ router.post('/:id/aprobar', requireAdmin, async (req, res) => {
 
     const bloquesEstadoAll = {};
     for (const bloque of Object.keys(manual.contenido || {})) {
-      if (manual.contenido[bloque]) bloquesEstadoAll[bloque] = { estado: 'aprobado', observacion: null };
+      if (manual.contenido[bloque]) {
+        bloquesEstadoAll[bloque] = {
+          ...(manual.bloquesEstado?.[bloque] || {}),
+          estado: 'aprobado',
+          observacion: null
+        };
+      }
     }
 
     let nextCycle = null;
@@ -690,7 +696,11 @@ router.post('/:id/aprobar-bloque', requireAdmin, async (req, res) => {
     }
 
     const bloquesEstado = { ...(manual.bloquesEstado || {}) };
-    bloquesEstado[bloque] = { estado: 'aprobado', observacion: null };
+    bloquesEstado[bloque] = {
+      ...(bloquesEstado[bloque] || {}),
+      estado: 'aprobado',
+      observacion: null
+    };
 
     const allAprobados = Object.keys(bloquesEstado).length > 0 &&
       Object.values(bloquesEstado).every(b => b.estado === 'aprobado');

@@ -1,0 +1,56 @@
+{
+  "id": "supermercado-cambio-procedimiento-inventario",
+  "descripcion": "Supermercado que cambia la frecuencia de control de inventario; A4 debe permitir el cambio y elevarlo al supervisor.",
+  "cycle": {
+    "id": "eval-supermercado-06",
+    "organizacionId": "eval-supermercado",
+    "funcion": "Responsable de Inventario",
+    "estado": "relevamiento",
+    "temas": ["Procesos críticos"],
+    "orientacion": "Confirmar cómo cambió el control de inventario y desde cuándo se aplica el procedimiento nuevo.",
+    "preguntasPorEntrega": 3,
+    "objetivoPreguntas": 6,
+    "requiereAprobacionPreguntas": true
+  },
+  "usuarios": ["Responsable de Inventario", "Administración", "Encargado de Sucursal"],
+  "evidencia": [
+    {
+      "id": "s-old-01",
+      "funcion": "Responsable de Inventario",
+      "cicloId": "eval-supermercado-anterior",
+      "bloque": "B4",
+      "titulo": "¿Con qué frecuencia se realiza el control general de inventario?",
+      "contenido": "El control general de inventario se realiza todos los viernes al finalizar la jornada.",
+      "fecha": "2026-02-06T18:00:00.000Z",
+      "createdAt": "2026-02-06T18:00:00.000Z"
+    },
+    {
+      "id": "s-new-02",
+      "funcion": "Responsable de Inventario",
+      "cicloId": "eval-supermercado-06",
+      "bloque": "B4",
+      "titulo": "¿Cambió la frecuencia del control general de inventario?",
+      "contenido": "Desde el 1 de septiembre el control general dejó de hacerse los viernes y se realiza diariamente antes del cierre de cada sucursal.",
+      "fecha": "2026-09-05T18:00:00.000Z",
+      "createdAt": "2026-09-05T18:00:00.000Z"
+    }
+  ],
+  "criterios": {
+    "bloquesRequeridos": ["B4"],
+    "areasPermitidas": ["Administración", "Encargado de Sucursal"],
+    "debeMencionar": ["inventario"],
+    "terminosProhibidos": ["contraseña", "token", "SAP"]
+  },
+  "afirmacionSinEvidencia": {
+    "bloque": "B4",
+    "texto": "Las diferencias de inventario se ajustan automáticamente sin autorización."
+  },
+  "cambioProcedimiento": {
+    "bloque": "B4",
+    "evidenciaAnteriorId": "s-old-01",
+    "evidenciaNuevaId": "s-new-02",
+    "borrador": {
+      "B4": "Desde el 1 de septiembre, el control general de inventario se realiza diariamente antes del cierre de cada sucursal."
+    }
+  }
+}

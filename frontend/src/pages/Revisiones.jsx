@@ -54,6 +54,9 @@ function BloqueReview({ bloqueKey, nombre, contenido, contenidoAnterior, bloqueE
   const estado = bloqueEstado?.estado || 'en_revision'
   const observacion = bloqueEstado?.observacion
   const sugerenciaVerificador = bloqueEstado?.sugerenciaVerificador
+  const cambiosProcedimiento = Array.isArray(bloqueEstado?.cambiosProcedimiento)
+    ? bloqueEstado.cambiosProcedimiento
+    : []
 
   const borderColor = estado === 'aprobado' ? '#bbf7d0' : estado === 'devuelto' ? '#fed7aa' : '#e5e7eb'
   const estadoLabel = estado === 'aprobado'
@@ -110,6 +113,15 @@ function BloqueReview({ bloqueKey, nombre, contenido, contenidoAnterior, bloqueE
           {sugerenciaVerificador && (
             <div className="mx-3 mb-2 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-900">
               <span className="font-medium">Sugerencia del verificador: </span>{sugerenciaVerificador}
+            </div>
+          )}
+          {cambiosProcedimiento.length > 0 && (
+            <div className="mx-3 mb-2 rounded border border-blue-200 bg-blue-50 p-2 text-xs text-blue-900">
+              <p className="font-semibold">Posible cambio de procedimiento</p>
+              {cambiosProcedimiento.map((cambio, index) => (
+                <p key={`${cambio.evidenciaAnteriorId}-${cambio.evidenciaNuevaId}-${index}`} className="mt-1">{cambio.detalle}</p>
+              ))}
+              <p className="mt-1 text-blue-700">La evidencia más reciente contradice un registro anterior. Al aprobar este bloque confirmás que el manual debe reflejar el cambio; si no corresponde, devolvelo con una observación.</p>
             </div>
           )}
 

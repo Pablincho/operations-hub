@@ -94,6 +94,11 @@ export async function generarYEnviarRevisionAutomatica(cicloId) {
         if (!message) continue;
         suggestionsByBlock.set(block, [...(suggestionsByBlock.get(block) || []), message]);
       }
+      const processChangesByBlock = new Map();
+      for (const change of agentResult.cambiosProcedimiento || []) {
+        const block = change.bloque || 'B4';
+        processChangesByBlock.set(block, [...(processChangesByBlock.get(block) || []), change]);
+      }
       for (const [block, text] of Object.entries(agentResult.contenido)) {
         if (!text) continue;
         const previousText = previousApproved?.contenido?.[block];
@@ -104,11 +109,14 @@ export async function generarYEnviarRevisionAutomatica(cicloId) {
               ? (bloquesDevueltos.has(block) ? 'en_revision' : 'aprobado')
               : (!previousText || previousText.trim() !== text.trim()) ? 'en_revision' : 'aprobado',
           observacion: null,
-          sugerenciaVerificador: (suggestionsByBlock.get(block) || []).join(' ')
+          sugerenciaVerificador: (suggestionsByBlock.get(block) || []).join(' '),
+          cambiosProcedimiento: processChangesByBlock.get(block) || []
         };
       }
       if (operativo.autoaprobarManual) {
-        for (const block of Object.keys(bloquesEstado)) bloquesEstado[block] = { estado: 'aprobado', observacion: null };
+        for (const block of Object.keys(bloquesEstado)) {
+          bloquesEstado[block] = { ...bloquesEstado[block], estado: 'aprobado', observacion: null };
+        }
       }
 
       return Manual.create({

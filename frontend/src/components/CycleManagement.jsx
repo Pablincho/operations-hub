@@ -105,7 +105,7 @@ function GeneralCycleConfig({ config, editableCycles, onSaved }) {
           </label>
           <label title="Cuando estÃ¡ activo, el operativo puede elegir responder todas las preguntas pendientes, ademÃ¡s de la tanda habitual." className="flex items-start gap-2 text-sm rounded-lg border p-3 cursor-pointer">
             <input type="checkbox" className="mt-0.5" checked={form.permitirResponderTodas} onChange={event => setForm(prev => ({ ...prev, permitirResponderTodas: event.target.checked }))} />
-            <span><strong className="block text-xs">Permitir responder todas las preguntas aprobadas</strong><span className="text-xs text-muted-foreground">El operativo podrÃ¡ elegir completar todas las preguntas pendientes, ademÃ¡s de la cantidad habitual por entrega.</span></span>
+            <span><strong className="block text-xs">Permitir responder todas las preguntas aprobadas</strong><span className="text-xs text-muted-foreground">El operativo podrá elegir completar todas las preguntas pendientes, además de la cantidad habitual por entrega.</span></span>
           </label>
           <label className="flex items-start gap-2 text-sm rounded-lg border border-blue-200 bg-blue-50 p-3 cursor-pointer">
             <input type="checkbox" className="mt-0.5" checked={form.aplicarACiclos} onChange={event => setForm(prev => ({ ...prev, aplicarACiclos: event.target.checked }))} />

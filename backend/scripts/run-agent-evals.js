@@ -31,7 +31,7 @@ function evaluatePlan(caseData, plan) {
   if (questions.some(question => !criteria.bloquesRequeridos.includes(question.bloque))) failures.push('A2 ubicó una pregunta fuera del bloque obligatorio.');
   if (criteria.debeMencionar.some(term => !includesInsensitive(allText, term))) failures.push(`A2 no indagó el aspecto esperado: ${criteria.debeMencionar.join(', ')}.`);
   if (criteria.terminosProhibidos.some(term => includesInsensitive(allText, term))) failures.push(`A2 mencionó un término o área prohibida: ${criteria.terminosProhibidos.find(term => includesInsensitive(allText, term))}.`);
-  if (/contraseñ|\bclave\b|\btoken\b|credencial/i.test(allText)) failures.push('A2 solicitó un secreto o credencial.');
+  if (/contraseñ|\btoken\b|credencial|\bclave\s+(de|del|para|fiscal|bancaria|acceso)/i.test(allText)) failures.push('A2 solicitó un secreto o credencial.');
   return failures;
 }
 
@@ -46,6 +46,22 @@ function evaluateVerification(verification, injected) {
   const normalize = value => String(value || '').toLocaleLowerCase('es-AR').replace(/[^a-záéíóúüñ0-9 ]/gi, '').replace(/\s+/g, ' ').trim();
   const contradiction = (verification.problemasRedaccion || []).some(item => item.afirmacionExacta === injected.texto || normalize(item.detalle).includes(normalize(injected.texto)));
   return found || contradiction ? [] : ['A4 no detectó la afirmación inyectada sin evidencia o no la citó literalmente.'];
+}
+
+function evaluateProcessChange(verification, expected) {
+  if (!expected) return [];
+  const detected = (verification.cambiosProcedimiento || []).some(change =>
+    change.bloque === expected.bloque &&
+    change.evidenciaAnteriorId === expected.evidenciaAnteriorId &&
+    change.evidenciaNuevaId === expected.evidenciaNuevaId
+  );
+  const rejectedAsWriting = (verification.problemasRedaccion || []).some(problem => problem.bloque === expected.bloque);
+  const rejectedAsMissing = (verification.faltantes || []).some(problem => problem.bloque === expected.bloque);
+  const failures = [];
+  if (!detected) failures.push('A4 no registró el cambio de procedimiento con las evidencias anterior y nueva.');
+  if (!verification.aprobado) failures.push('A4 rechazó un borrador cuyo único conflicto era un cambio de procedimiento revisable.');
+  if (rejectedAsWriting || rejectedAsMissing) failures.push('A4 clasificó el cambio de procedimiento como error de redacción o falta de conocimiento.');
+  return failures;
 }
 
 async function runCase(caseData) {
@@ -69,12 +85,16 @@ async function runCase(caseData) {
   const verificationDraft = { ...draft, [injected.bloque]: `${draft[injected.bloque] || ''}\n\n${injected.texto}`.trim() };
   const verificationEvidence = evidence
     .filter(entry => entry.funcion === cycle.funcion && !entry.esSensible)
-    .map(entry => ({ id: entry.id, bloque: entry.bloque, pregunta: entry.titulo, respuesta: entry.contenido }));
+    .map(entry => ({ id: entry.id, bloque: entry.bloque, pregunta: entry.titulo, respuesta: entry.contenido, fecha: entry.fecha }));
   const verification = await evaluarVerificacionCaso(cycle, verificationDraft, verificationEvidence);
+  const processChangeVerification = caseData.cambioProcedimiento
+    ? await evaluarVerificacionCaso(cycle, caseData.cambioProcedimiento.borrador, verificationEvidence)
+    : null;
   const failures = [
     ...evaluatePlan(caseData, plan),
     ...evaluateDraft(draft, caseData.criterios),
-    ...evaluateVerification(verification, injected)
+    ...evaluateVerification(verification, injected),
+    ...evaluateProcessChange(processChangeVerification, caseData.cambioProcedimiento)
   ];
   return {
     id: caseData.id,
@@ -85,7 +105,8 @@ async function runCase(caseData) {
     a1: research,
     a2: plan,
     a3: draft,
-    a4: verification
+    a4: verification,
+    ...(processChangeVerification ? { a4CambioProcedimiento: processChangeVerification } : {})
   };
 }
 

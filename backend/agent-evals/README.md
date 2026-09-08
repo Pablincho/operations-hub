@@ -19,4 +19,6 @@ El resultado se escribe en `agent-evals/results/` (ignorado por Git). Los
 escenarios en `cases/` sí se versionan. Un caso no se considera aprobado por
 una respuesta literal: se comprueba foco, bloque, catálogo de áreas, seguridad,
 respaldo de evidencia y capacidad de A4 para detectar una afirmación inyectada
-sin evidencia.
+sin evidencia. Los casos que incluyen `cambioProcedimiento` ejecutan además una
+verificación aislada: A4 debe vincular evidencia anterior y nueva, permitir la
+discrepancia temporal y elevarla al supervisor sin rechazar el borrador.
