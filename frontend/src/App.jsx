@@ -5,6 +5,7 @@ import { NotificationsProvider } from '@/contexts/NotificationsContext'
 import Layout from '@/components/Layout'
 import Login from '@/pages/Login'
 import AgentActivityOverlay from '@/components/AgentActivityOverlay'
+import api from '@/services/api'
 
 const Dashboard = lazy(() => import('@/pages/Dashboard'))
 const Asistente = lazy(() => import('@/pages/Asistente'))
@@ -23,6 +24,27 @@ class RouteErrorBoundary extends Component {
 
   static getDerivedStateFromError() {
     return { hasError: true }
+  }
+
+  componentDidCatch(error, info) {
+    const mensaje = String(error?.message || error)
+    // Una descarga de chunk fallida (red inestable o build nuevo) se arregla recargando:
+    // lo hacemos solos una vez, y si vuelve a fallar enseguida queda el botón manual.
+    const esChunk = /dynamically imported module|Importing a module script failed|Failed to fetch|Loading chunk|MIME type/i.test(mensaje)
+    let recargoReciente = false
+    try { recargoReciente = Date.now() - Number(sessionStorage.getItem('remi_chunk_reload') || 0) < 15000 } catch { /* ignore */ }
+    if (esChunk && !recargoReciente) {
+      try { sessionStorage.setItem('remi_chunk_reload', String(Date.now())) } catch { /* ignore */ }
+      window.location.reload()
+      return
+    }
+    // Cualquier otro error quedaba oculto detrás del cartel: lo mandamos a Reportes de
+    // bugs para saber qué pasó sin depender de que el usuario lo cuente.
+    api.post('/bugs', {
+      tipo: 'bug',
+      pagina: window.location.pathname,
+      texto: `[automático] ${mensaje}\n${navigator.userAgent}\n${info?.componentStack || ''}`.slice(0, 4000)
+    }).catch(() => {})
   }
 
   render() {
