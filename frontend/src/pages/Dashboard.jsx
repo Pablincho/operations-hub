@@ -215,9 +215,10 @@ export default function Dashboard() {
                 <div key={fn}>
                   <div className="flex justify-between text-xs mb-1">
                     <span className="font-medium">{FUNC_ICONS[fn]} {fn}</span>
+                    {/* Un solo nodo de texto: con dos, un traductor del navegador que los reemplace
+                        hace fallar a React al insertar el primero cuando llegan los datos. */}
                     <span className="text-muted-foreground">
-                      {cycleStatusMap[fn] ? `Ciclo ${cycleStatusMap[fn].numero} · ` : ''}
-                      {target ? `${count}/${target} respuestas · ${pct}%` : `${count} respuestas`}
+                      {`${cycleStatusMap[fn] ? `Ciclo ${cycleStatusMap[fn].numero} · ` : ''}${target ? `${count}/${target} respuestas · ${pct}%` : `${count} respuestas`}`}
                     </span>
                   </div>
                   {target && <Progress value={pct} indicatorClassName="transition-all" style={{ '--progress-color': FUNC_COLORS[fn] }} />}
